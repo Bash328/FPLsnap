@@ -138,7 +138,7 @@ td.c .fx{transition:transform .12s,box-shadow .12s}
 td.c .fx:hover{box-shadow:0 0 0 2px #fff inset;transform:scale(1.03);position:relative;z-index:2}
 .dt th{transition:color .15s}.dt th:hover{color:var(--text)}.dt th[aria-sort=ascending],.dt th[aria-sort=descending]{color:var(--accent)}
 .tm:hover i{color:#facc15}
-.msg{animation:rise .3s ease both}
+.msg{animation:rise .3s ease backwards}
 
 /* breathing room */
 main{padding-top:28px}
@@ -151,8 +151,25 @@ h2{margin:32px 0 12px}
 
 /* gentle entrance */
 @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-main>*{animation:rise .4s ease both}
+main>*{animation:rise .4s ease backwards}
 main>*:nth-child(2){animation-delay:.04s}main>*:nth-child(3){animation-delay:.08s}main>*:nth-child(4){animation-delay:.12s}main>*:nth-child(n+5){animation-delay:.16s}
-.cards .card{animation:rise .45s ease both}.cards .card:nth-child(2){animation-delay:.07s}.cards .card:nth-child(3){animation-delay:.14s}
+.cards .card{animation:rise .45s ease backwards}.cards .card:nth-child(2){animation-delay:.07s}.cards .card:nth-child(3){animation-delay:.14s}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 @media(min-width:721px){.links{overflow:visible}}
+
+/* custom dropdowns (same look as the nav menus) */
+.bar>.sel{position:relative;padding:0;min-width:120px}
+.bar>.sel.open{z-index:20;border-color:var(--accent);background:#162447}
+.bar>.sel:hover{border-color:var(--accent);background:#162447}
+.sel select{position:absolute;inset:0;width:100%;height:100%;opacity:0;pointer-events:none}
+.selbtn{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:42px;padding:10px 16px;background:none;border:0;border-radius:999px;color:var(--text);font:inherit;cursor:pointer;text-align:left;white-space:nowrap}
+.selbtn:hover{border:0;background:none}
+.cv{display:block;width:7px;height:7px;border:solid var(--mute);border-width:0 2px 2px 0;transform:rotate(45deg) translate(-2px,-2px);transition:transform .2s,border-color .15s;flex:none}
+.sel.open .cv{transform:rotate(-135deg) translate(-2px,-2px);border-color:var(--text)}
+.sel .menu{list-style:none;margin:0;max-height:320px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#334155 transparent;min-width:100%;left:0;right:auto}
+.sel .menu.r{left:auto;right:0}
+.sel.open .menu{opacity:1;visibility:visible;transform:none}
+.sel .menu li{display:flex;justify-content:space-between;gap:16px;padding:11px 14px;border-radius:12px;color:var(--text);font-weight:600;cursor:pointer;white-space:nowrap;transition:background .12s}
+.sel .menu li:hover,.sel .menu li.act{background:#ffffff14}
+.sel .menu li[aria-selected=true]{color:var(--accent);background:#22d3ee14}
+.sel .menu li[aria-selected=true]::after{content:"✓"}

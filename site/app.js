@@ -128,6 +128,48 @@ function table(el, cols, rows, o = {}) {
   if (hero && g) hero.insertAdjacentHTML('beforeend', '<div class="sub">' + GROUPS[g].map(([h, t]) => `<a href="${h}"${norm(h) === here ? ' class="on"' : ''}>${t}</a>`).join('') + '</div>');
 }
 
+// Custom dropdowns styled like the nav menus. The native <select> stays in the DOM (hidden) so page code keeps working:
+// its value, change events and options still drive everything.
+function enhanceSelect(sel) {
+  const valueProp = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
+  const wrap = document.createElement('div'); wrap.className = 'sel';
+  const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'selbtn';
+  btn.setAttribute('aria-haspopup', 'listbox'); btn.setAttribute('aria-expanded', 'false');
+  btn.setAttribute('aria-label', sel.getAttribute('aria-label') || '');
+  btn.innerHTML = '<span class="lbl"></span><i class="cv"></i>';
+  const menu = document.createElement('ul'); menu.className = 'menu'; menu.setAttribute('role', 'listbox');
+  sel.before(wrap); wrap.append(btn, menu, sel); sel.tabIndex = -1; sel.setAttribute('aria-hidden', 'true');
+  const sync = () => { btn.firstChild.textContent = sel.selectedOptions[0]?.textContent ?? '' };
+  const items = () => [...menu.children];
+  let act = -1;
+  const mark = () => items().forEach((li, i) => li.classList.toggle('act', i === act));
+  const close = () => { wrap.classList.remove('open'); btn.setAttribute('aria-expanded', 'false') };
+  const open = () => {
+    document.querySelectorAll('.sel.open').forEach(o => o !== wrap && o.classList.remove('open'));
+    menu.innerHTML = [...sel.options].map((o, i) => `<li role="option" aria-selected="${i === sel.selectedIndex}">${esc(o.textContent)}</li>`).join('');
+    wrap.classList.add('open'); btn.setAttribute('aria-expanded', 'true');
+    const r = menu.getBoundingClientRect(); menu.classList.toggle('r', r.right > innerWidth - 8 && wrap.getBoundingClientRect().right - r.width > 8);
+    act = sel.selectedIndex; mark(); items()[act]?.scrollIntoView({ block: 'nearest' });
+  };
+  const pick = i => { if (i < 0) return; sel.selectedIndex = i; sel.dispatchEvent(new Event('change', { bubbles: true })); close(); btn.focus() };
+  // keep the label right when page code sets .value or replaces the options
+  Object.defineProperty(sel, 'value', { get() { return valueProp.get.call(sel) }, set(v) { valueProp.set.call(sel, v); sync() }, configurable: true });
+  new MutationObserver(sync).observe(sel, { childList: true });
+  sel.addEventListener('change', sync); sync();
+  btn.onclick = e => { e.stopPropagation(); wrap.classList.contains('open') ? close() : open() };
+  menu.onclick = e => { const li = e.target.closest('li'); if (li) { e.stopPropagation(); pick(items().indexOf(li)) } };
+  btn.onkeydown = e => {
+    const isOpen = wrap.classList.contains('open');
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault(); if (!isOpen) return open();
+      act = Math.min(items().length - 1, Math.max(0, act + (e.key === 'ArrowDown' ? 1 : -1))); mark(); items()[act].scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); isOpen ? pick(act) : open() }
+    else if (e.key === 'Escape' && isOpen) { e.preventDefault(); close() }
+  };
+}
+document.querySelectorAll('.bar select').forEach(enhanceSelect);
+document.addEventListener('click', () => document.querySelectorAll('.sel.open').forEach(o => { o.classList.remove('open'); o.querySelector('.selbtn').setAttribute('aria-expanded', 'false') }));
+
 // Ads load only after consent. Fill these in once AdSense approves the site:
 // PUB = your publisher id ('ca-pub-1234567890123456'); SLOTS = the ad unit ids for each position.
 // Until then the empty .ad boxes stay hidden. With PUB set but a slot id empty, Google's Auto ads (if enabled in AdSense) still work.
