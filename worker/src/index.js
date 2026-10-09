@@ -1,5 +1,7 @@
 // FPLSnap API: a caching, CORS-enabled read-only proxy for public FPL endpoints, plus a 30-minute cron that
 // records price/captain prediction accuracy and samples elite-manager ownership.
+import { compute } from '../../shared/compute.mjs';
+
 const FPL = 'https://fantasy.premierleague.com/api/';
 const UA = 'FPLSnap (+https://fplsnap.com)';
 const ALLOW = [
@@ -42,7 +44,20 @@ async function proxy(req, url, ctx, cors) {
   return new Response(res.body, { status: 200, headers: { 'content-type': 'application/json', 'cache-control': `public, max-age=${ttl(path)}`, ...cors } });
 }
 
-// ---- cron: accuracy tracking + elite sampling ----
+// Serve the precomputed payloads from KV, cached at the edge for a minute
+async function served(req, url, env, ctx, cors) {
+  const key = url.pathname === '/api/site' ? 'site' : 'ticker', cache = caches.default, ck = new Request(url.origin + url.pathname);
+  let res = await cache.match(ck);
+  if (!res) {
+    const [body, l] = await Promise.all([env.KV.get(key), env.KV.list({ prefix: 'site' })]);
+    if (!body) return json({ error: 'not ready' }, 503, cors);
+    res = new Response(body, { headers: { 'content-type': 'application/json', 'cache-control': 'public, max-age=60', 'x-checked': l.keys[0]?.metadata?.updated ?? '' } });
+    ctx.waitUntil(cache.put(ck, res.clone()));
+  }
+  return new Response(res.body, { headers: { 'content-type': 'application/json', 'cache-control': 'public, max-age=60', 'x-checked': res.headers.get('x-checked') || '', 'access-control-expose-headers': 'x-checked', ...cors } });
+}
+
+// ---- cron: data refresh, accuracy tracking, elite sampling ----
 const push = async (env, key, row, cap) => {
   const log = (await env.KV.get(key, 'json')) || [];
   log.push(row);
@@ -79,7 +94,8 @@ async function trackCaptains(env, boot) {
   if (next) { // overwritten each run until the deadline, so the last one is the pre-deadline view
     const top = boot.elements.filter(p => p.status === 'a' && +p.ep_next > 0)
       .sort((a, b) => b.ep_next - a.ep_next).slice(0, 10).map(p => ({ id: p.id, ep: +p.ep_next }));
-    await env.KV.put('capt:' + next.id, JSON.stringify(top));
+    const v = JSON.stringify(top);
+    if ((await env.KV.get('capt:' + next.id)) !== v) await env.KV.put('capt:' + next.id, v);
   }
   const clog = (await env.KV.get('clog', 'json')) || [];
   const last = clog.at(-1)?.gw ?? 0;
@@ -106,6 +122,7 @@ async function sampleElite(env, boot) {
     }
     st = { gw: cur.id, ids, done: 0, n: 0, counts: {} };
   }
+  if (st.done >= st.ids.length) return;
   const batch = st.ids.slice(st.done, st.done + BATCH);
   const res = await Promise.allSettled(batch.map(id => fpl(`entry/${id}/event/${cur.id}/picks/`)));
   for (const r of res) {
@@ -119,10 +136,22 @@ async function sampleElite(env, boot) {
   await env.KV.put('elite', JSON.stringify(st));
 }
 
+// Refresh the data every page reads. KV writes are bounded (free plan allows 1000/day): the site payload is
+// written each run, the ticker only when fixtures really changed, accuracy tracking every other run.
+async function refreshSite(env, boot, fx) {
+  const { site, ticker } = compute(boot, fx);
+  await env.KV.put('site', JSON.stringify(site), { metadata: { updated: site.updated } });
+  const t = JSON.stringify(ticker), strip = x => x.replace(/"updated":"[^"]*"/, '');
+  const old = await env.KV.get('ticker');
+  if (!old || strip(old) !== strip(t)) await env.KV.put('ticker', t);
+}
+
 async function cron(env) {
-  const boot = await fpl('bootstrap-static/');
-  for (const job of [trackPrices, trackCaptains, sampleElite]) {
-    try { await job(env, boot) } catch (e) { console.log(job.name, String(e)) }
+  const [boot, fx] = await Promise.all([fpl('bootstrap-static/'), fpl('fixtures/')]);
+  const slow = new Date().getUTCMinutes() % 10 < 5;
+  const jobs = [(e, b) => refreshSite(e, b, fx), ...(slow ? [trackPrices, trackCaptains] : []), sampleElite];
+  for (const job of jobs) {
+    try { await job(env, boot) } catch (e) { console.log('cron job failed', String(e)) }
   }
 }
 
@@ -133,6 +162,11 @@ export default {
     if (req.method !== 'GET') return json({ error: 'GET only' }, 405, cors);
     if (url.pathname.startsWith('/api/fpl/')) return proxy(req, url, ctx, cors);
     const pub = { ...cors, 'cache-control': 'public, max-age=60' };
+    if (url.pathname === '/api/site' || url.pathname === '/api/ticker') return served(req, url, env, ctx, cors);
+    if (url.pathname === '/api/version') {
+      const l = await env.KV.list({ prefix: 'site' });
+      return json({ site: l.keys[0]?.metadata?.updated ?? null }, 200, { ...cors, 'cache-control': 'public, max-age=30' });
+    }
     if (url.pathname === '/api/accuracy') {
       return json({ price: (await env.KV.get('plog', 'json')) || [], captain: (await env.KV.get('clog', 'json')) || [] }, 200, pub);
     }

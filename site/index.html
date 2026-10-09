@@ -53,13 +53,13 @@
 <script id="d" type="application/json">null</script>
 <script src="app.js"></script>
 <script>
-const D=JSON.parse($('d').textContent);
-const last=Math.max(...D.teams.flatMap(t=>t.f.map(f=>f.g)));
+let D=JSON.parse($('d').textContent);
+let last=Math.max(...D.teams.flatMap(t=>t.f.map(f=>f.g)));
 // custom keys: "<opponentId>h" / "<opponentId>a" = rating for fixtures played at home / away vs that opponent
 let custom=store.get('fdr',{}), pins=new Set(store.get('pins',[]));
 // URL hash (shared link) beats saved prefs, which beat defaults
 const P={s:D.ev.id,n:6,o:'az',m:'r',q:'',k:0,...store.get('prefs',{}),...Object.fromEntries(new URLSearchParams(location.hash.slice(1)))};
-const T=Object.fromEntries(D.teams.map(t=>[t.id,t]));
+let T=Object.fromEntries(D.teams.map(t=>[t.id,t]));
 const rate=f=>custom[f.o+(f.h?'h':'a')]??f[P.m];
 const when=k=>new Date(k).toLocaleString([],{weekday:'short',hour:'2-digit',minute:'2-digit'});
 let view; // {gws, rows} of the current render, reused by CSV
@@ -101,15 +101,29 @@ const tick=()=>{
   $('dl').textContent='GW'+D.ev.id+' deadline in '+(d?d+'d ':'')+(d||h?h+'h ':'')+m+'m';
 };
 tick();setInterval(tick,6e4);
-$('upd').textContent='Fixtures updated '+new Date(D.updated).toLocaleString([],{dateStyle:'short',timeStyle:'short'});
-$('s').innerHTML=Array.from({length:last-D.ev.id+1},(_,i)=>`<option value=${D.ev.id+i}>From GW${D.ev.id+i}`).join('');
-$('n').innerHTML=[5,6,7,8].map(i=>`<option value=${i}>${i} GWs`).join('');
 const clamp=(v,lo,hi)=>Math.min(hi,Math.max(lo,v));
-$('s').value=clamp(+P.s,D.ev.id,last);$('n').value=[5,6,7,8].includes(+P.n)?+P.n:6;
+// (Re)load fixture data: used for the inline first paint and again when the API has newer data
+function useData(d){
+  D=d;last=Math.max(...D.teams.flatMap(t=>t.f.map(f=>f.g)));T=Object.fromEntries(D.teams.map(t=>[t.id,t]));
+  const sel=+$('s').value||+P.s;
+  $('s').innerHTML=Array.from({length:last-D.ev.id+1},(_,i)=>`<option value=${D.ev.id+i}>From GW${D.ev.id+i}`).join('');
+  $('s').value=clamp(sel,D.ev.id,last);tick();
+}
+stamp($('upd'),D.updated,'Fixtures checked');
+$('n').innerHTML=[5,6,7,8].map(i=>`<option value=${i}>${i} GWs`).join('');
+useData(D);
+$('n').value=[5,6,7,8].includes(+P.n)?+P.n:6;
 $('sort').value=P.o;$('m').value=P.m;$('q').value=P.q;$('k').checked=!!+P.k;
 $('fdrg').innerHTML=D.teams.map(t=>`<label>${t.short}<span>`+['h','a'].map(v=>`<select data-key="${t.id}${v}" aria-label="${t.name} rating for fixtures ${v==='h'?'at home':'away'}"><option value="">${v.toUpperCase()} –`+[1,2,3,4,5].map(i=>`<option value=${i}>${v.toUpperCase()} ${i}`).join('')+'</select>').join(' ')+'</span></label>').join('');
 const sync=()=>$('fdrg').querySelectorAll('select').forEach(s=>s.value=custom[s.dataset.key]??'');
 sync();render();
+// Pull fresh fixtures from the API on load and every 5 minutes; the inline copy is only the first paint
+async function fresh(){
+  try{const r=await fetch(API+'/api/ticker');if(!r.ok)return;const x=await r.json();
+    if(new Date(x.updated)>new Date(D.updated)){useData(x);render()}
+    stamp($('upd'),r.headers.get('x-checked')||x.updated,'Fixtures checked')}catch{}
+}
+fresh();setInterval(fresh,3e5);
 ['s','n','sort','m','k'].forEach(id=>$(id).onchange=save);$('q').oninput=save;
 $('t').onclick=e=>{const b=e.target.closest('[data-pin]');if(!b)return;const id=+b.dataset.pin;pins.has(id)?pins.delete(id):pins.add(id);store.set('pins',[...pins]);render()};
 $('edit').onclick=()=>$('fdr').classList.toggle('on');

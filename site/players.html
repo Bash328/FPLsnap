@@ -66,7 +66,7 @@ function show() {
 }
 loadSite().then(s => {
   S = s;
-  $('upd').textContent = 'Updated ' + new Date(S.updated).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+  stamp($('upd'), S.updated);
   $('tm').innerHTML += Object.entries(S.teams).sort((a, b) => a[1].name.localeCompare(b[1].name)).map(([id, t]) => `<option value="${id}">${t.name}</option>`).join('');
   $('px').innerHTML = Array.from({ length: 21 }, (_, i) => 15 - i * .5).map(v => `<option value="${v}">${v === 15 ? 'Any price' : 'Max £' + v.toFixed(1)}</option>`).join('');
   show();

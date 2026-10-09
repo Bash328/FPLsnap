@@ -45,7 +45,7 @@ const pool = () => S.players.filter(p => p.e > 1 && p.ep > 0 && p.st !== 'i' && 
 const rows = () => pool().filter(p => (!+$('pos').value || p.e === +$('pos').value) && (!$('diff').checked || p.o < 10));
 loadSite().then(s => {
   S = s;
-  $('sub').textContent = 'GW' + S.ev.id + ' · updated ' + new Date(S.updated).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+  stamp($('sub'), S.updated, 'GW' + S.ev.id + ' · updated');
   $('top').innerHTML = pool().sort((a, b) => b.ep - a.ep).slice(0, 3).map((p, i) => `<div class="card"><h3>${['Top pick', 'Runner-up', 'Third'][i]}</h3><div class="row">${chip(S.teams[p.t].short)}<b style="margin-left:0">${esc(p.n)}</b><b>${p.ep.toFixed(1)} pts</b></div><div class="row" style="color:var(--mute)">${fx(p)}<span style="margin-left:auto">${p.o}% owned</span></div></div>`).join('');
   redraw = table($('t'), cols, rows(), { sort: 3, limit: 30 });
   $('pos').onchange = $('diff').onchange = () => redraw(rows());

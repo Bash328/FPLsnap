@@ -31,7 +31,7 @@
 const NAME = { wildcard: 'Wildcard', freehit: 'Free Hit', bboost: 'Bench Boost', '3xc': 'Triple Captain' };
 loadSite().then(S => {
   const from = S.ev.id, T = S.teams;
-  $('sub').textContent = 'From GW' + from + ' · updated ' + new Date(S.updated).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+  stamp($('sub'), S.updated, 'From GW' + from + ' · updated');
   const gws = Object.entries(S.gw).map(([g, x]) => ({ g: +g, ...x })).filter(x => x.g >= from);
   const best = (a, z, k) => gws.filter(x => x.g >= a && x.g <= z && x[k].length).sort((p, q) => q[k].length - p[k].length || p.g - q.g)[0];
   const tip = c => {

@@ -52,7 +52,7 @@ function rows() {
 }
 loadSite().then(s => {
   S = s;
-  $('upd').textContent = 'Updated ' + new Date(S.updated).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+  stamp($('upd'), S.updated);
   redraw = table($('t'), cols, rows(), { sort: 6, limit: 150 });
   $('tabs').onclick = e => { const b = e.target.closest('button'); if (!b) return; view = b.dataset.v; [...$('tabs').children].forEach(x => x.setAttribute('aria-pressed', x === b)); redraw(rows()) };
   $('q').oninput = $('own').onchange = () => redraw(rows());

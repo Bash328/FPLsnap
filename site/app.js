@@ -50,7 +50,36 @@ function teamInput(onLoad) {
 const idHelp = '<p>Find your Team ID in the URL when you open your team on the FPL site: fantasy.premierleague.com/entry/<b>123456</b>/event/1. No login needed, and the ID is only stored on this device.</p>';
 
 // Page data (everything except the ticker, which inlines its own)
-const loadSite = () => fetch('data/site.json').then(r => r.json());
+// Fresh data comes from the API worker (refreshed every 5 minutes); the build's copy is the fallback.
+let loadedAt = '', act = Date.now(), banner, watching;
+const loadSite = () => api('site').catch(() => fetch('data/site.json').then(r => r.json())).then(d => { loadedAt = d.updated; watch(); return d });
+['pointerdown', 'keydown', 'scroll'].forEach(e => addEventListener(e, () => act = Date.now(), { passive: true }));
+// While a page stays open, pick up newer data: reload quietly if the visitor is idle, otherwise offer a refresh
+function watch() {
+  if (watching) return;
+  watching = setInterval(async () => {
+    if (document.hidden) return;
+    try {
+      const v = await api('version');
+      if (!v.site || v.site <= loadedAt) return;
+      if (Date.now() - act > 30000) return location.reload();
+      if (!banner) {
+        banner = document.createElement('div'); banner.className = 'msg';
+        banner.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:16px;z-index:8;cursor:pointer';
+        banner.textContent = 'Fresh data available · tap to refresh'; banner.onclick = () => location.reload(); document.body.append(banner);
+      }
+    } catch {}
+  }, 120000);
+}
+// "Updated 3 min ago", amber when older than an hour. Keeps itself current.
+function stamp(el, iso, label = 'Updated') {
+  const f = () => {
+    const m = Math.max(0, Math.round((Date.now() - new Date(iso)) / 6e4));
+    el.textContent = `${label} ${m < 1 ? 'just now' : m < 60 ? m + ' min ago' : Math.round(m / 60) + ' h ago'}`;
+    el.title = new Date(iso).toLocaleString(); el.style.color = m > 60 ? '#fbbf24' : '';
+  };
+  f(); clearInterval(el._t); el._t = setInterval(f, 30000);
+}
 
 // Sortable table. cols: [{h, f: row=>html, v: row=>sortValue, cls, asc}]. Returns redraw(newRows).
 function table(el, cols, rows, o = {}) {
