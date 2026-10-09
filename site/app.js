@@ -72,13 +72,22 @@ function table(el, cols, rows, o = {}) {
   document.querySelectorAll('.links a').forEach(a => { if ((a.getAttribute('href') === './' ? 'index.html' : a.getAttribute('href')) === here) a.classList.add('on') });
 }
 
-// Ads load only after consent. Set PUB to your AdSense publisher id once approved.
+// Ads load only after consent. Fill these in once AdSense approves the site:
+// PUB = your publisher id ('ca-pub-1234567890123456'); SLOTS = the ad unit ids for each position.
+// Until then the empty .ad boxes stay hidden. With PUB set but a slot id empty, Google's Auto ads (if enabled in AdSense) still work.
 const PUB = '';
+const SLOTS = { top: '', bottom: '', side: '' };
 function ads() {
   if (store.get('ads') !== true || !PUB) return;
-  const s = document.createElement('script'); s.async = true;
+  const s = document.createElement('script'); s.async = true; s.crossOrigin = 'anonymous';
   s.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=' + PUB; document.head.append(s);
-  // ponytail: slots are still placeholders; swap each .ad for an <ins class="adsbygoogle"> once units exist
+  document.querySelectorAll('.ad').forEach((el, i) => {
+    const id = SLOTS[el.classList.contains('side') ? 'side' : i === 0 ? 'top' : 'bottom'];
+    if (!id) return;
+    el.innerHTML = `<ins class="adsbygoogle" style="display:block;width:100%" data-ad-client="${PUB}" data-ad-slot="${id}" data-ad-format="auto" data-full-width-responsive="true"></ins>`;
+    el.classList.add('on');
+    (window.adsbygoogle = window.adsbygoogle || []).push({});
+  });
 }
 const choose = v => { store.set('ads', v); $('cb').classList.remove('on'); ads() };
 $('yes').onclick = () => choose(true); $('no').onclick = () => choose(false);
