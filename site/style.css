@@ -14,9 +14,6 @@ a{color:var(--accent)}
 .nav{background:#0d1730;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
 .nav .in{display:flex;align-items:center;gap:20px}
 .logo{font-weight:800;font-size:1.35rem;letter-spacing:-.02em;color:var(--text);text-decoration:none;padding:12px 0}.logo span{color:var(--accent)}
-.links{display:flex;overflow-x:auto;white-space:nowrap;scrollbar-width:none}
-.links a{color:var(--mute);text-decoration:none;padding:18px 14px;font-weight:600;font-size:15px}
-.links a:hover,.links a.on{color:#fff}.links a.on{box-shadow:inset 0 -3px var(--accent)}
 .hero{background:linear-gradient(105deg,#0d9488 0%,#0e7490 38%,#0f2a52 100%);position:relative;overflow:hidden}
 .hero::after{content:"";position:absolute;right:-30px;top:-40px;width:320px;height:320px;opacity:.13;transform:rotate(8deg);background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M18 4 8 18h7l-1 10 10-14h-7z' fill='white'/%3E%3C/svg%3E") no-repeat center/contain}
 .hero .in{position:relative;z-index:1;padding-top:26px;padding-bottom:0}
@@ -103,3 +100,59 @@ footer{color:var(--mute);font-size:12px;padding-bottom:28px;margin-top:28px;bord
 @media(max-width:640px){.cards{grid-auto-flow:column;grid-template-columns:none;grid-auto-columns:82%;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none}.cards .card{scroll-snap-align:start}}
 table:not(.dt) td:first-child{width:150px}
 table.dt{max-width:1400px}
+
+/* ---- Interaction polish: pills, dropdowns, focus rings, motion ---- */
+html{scroll-behavior:smooth}
+.nav .in{height:60px}
+.nav.scrolled{box-shadow:0 8px 24px #0007}
+.links{display:flex;gap:4px;align-items:center;overflow-x:auto;scrollbar-width:none}
+.links>a,.dd>a{color:var(--mute);text-decoration:none;padding:9px 16px;border-radius:999px;font-weight:600;font-size:15px;white-space:nowrap;transition:background .15s,color .15s}
+.links>a:hover,.links>a.on{color:#fff;background:#ffffff1a}
+.dd{position:relative;display:flex;align-items:center;border-radius:999px;transition:background .15s}
+.dd:hover,.dd.open{background:#ffffff14}
+.dd>a:hover{background:none;color:#fff}
+.dd>a.on{color:#fff}
+.dd.cur{background:#ffffff1a}
+.chev{background:none;border:0;color:var(--mute);padding:9px 12px 9px 0;margin-left:-8px;font-size:12px;border-radius:999px;cursor:pointer;min-height:0}
+.chev::before{content:"";display:block;width:7px;height:7px;border:solid currentColor;border-width:0 2px 2px 0;transform:rotate(45deg) translate(-2px,-2px);transition:transform .2s}
+.dd.open .chev::before,.dd:hover .chev::before{transform:rotate(-135deg) translate(-2px,-2px)}
+.dd:hover .chev,.dd.open .chev{color:#fff}
+.menu{position:absolute;left:0;top:calc(100% + 8px);min-width:210px;background:#0d1730;border:1px solid var(--accent);border-radius:18px;padding:8px;box-shadow:0 16px 40px #000a;opacity:0;visibility:hidden;transform:translateY(-6px);transition:opacity .15s,transform .15s,visibility .15s;z-index:10}
+.menu::before{content:"";position:absolute;left:0;right:0;top:-12px;height:12px}
+.dd:hover .menu,.dd.open .menu{opacity:1;visibility:visible;transform:none}
+.menu a{display:block;padding:11px 14px;border-radius:12px;color:var(--text);text-decoration:none;font-weight:600;transition:background .12s}
+.menu a:hover{background:#ffffff14}.menu a.on{color:var(--accent);background:#22d3ee14}
+@media(max-width:720px){.chev,.menu{display:none}.dd{background:none}.dd.cur{background:#ffffff1a}}
+
+/* a solid coloured ring around whatever you focus or click */
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input:focus,select:focus{outline:none;border-color:var(--accent)!important;box-shadow:0 0 0 3px #22d3ee40}
+button,select,input,.card,.fix,.sub a,.dt tr td,.tm{transition:border-color .15s,box-shadow .15s,background .15s,transform .12s,color .15s}
+.bar>button:hover,.bar>select:hover,.bar>input:hover,.bar label:hover,.tabs button:hover{border-color:var(--accent);background:#162447}
+button:active,.tabs button:active{transform:scale(.97)}
+.tabs button[aria-pressed=true]{box-shadow:0 0 0 1px var(--accent);background:#22d3ee14}
+.sub a{border-radius:12px 12px 0 0;transition:background .15s,color .15s,box-shadow .15s}
+.sub a:hover{background:#ffffff1a}
+.cards .card:hover,.fix:hover{transform:translateY(-3px);border-color:var(--accent);box-shadow:0 12px 28px #0006}
+td.c .fx{transition:transform .12s,box-shadow .12s}
+td.c .fx:hover{box-shadow:0 0 0 2px #fff inset;transform:scale(1.03);position:relative;z-index:2}
+.dt th{transition:color .15s}.dt th:hover{color:var(--text)}.dt th[aria-sort=ascending],.dt th[aria-sort=descending]{color:var(--accent)}
+.tm:hover i{color:#facc15}
+.msg{animation:rise .3s ease both}
+
+/* breathing room */
+main{padding-top:28px}
+.hero .in{padding-top:34px}
+.cards{gap:14px;margin:18px 0}
+.bar{gap:10px;margin-bottom:12px}
+.tabs{gap:8px;margin-bottom:14px}
+h2{margin:32px 0 12px}
+.card,.panel,.fix{padding:16px}
+
+/* gentle entrance */
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+main>*{animation:rise .4s ease both}
+main>*:nth-child(2){animation-delay:.04s}main>*:nth-child(3){animation-delay:.08s}main>*:nth-child(4){animation-delay:.12s}main>*:nth-child(n+5){animation-delay:.16s}
+.cards .card{animation:rise .45s ease both}.cards .card:nth-child(2){animation-delay:.07s}.cards .card:nth-child(3){animation-delay:.14s}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+@media(min-width:721px){.links{overflow:visible}}

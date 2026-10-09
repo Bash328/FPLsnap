@@ -105,7 +105,25 @@ function table(el, cols, rows, o = {}) {
   };
   const here = location.pathname.split('/').pop() || 'index.html', norm = h => h === './' ? 'index.html' : h;
   const g = Object.keys(GROUPS).find(k => GROUPS[k].some(([h]) => norm(h) === here));
-  document.querySelectorAll('.links a').forEach(a => { if (a.dataset.g === g) a.classList.add('on') });
+  // each group becomes a pill with a dropdown of its pages (opens on hover, or on click/Enter for touch and keyboard)
+  document.querySelectorAll('.links>a[data-g]').forEach(a => {
+    const k = a.dataset.g, dd = document.createElement('div');
+    dd.className = 'dd' + (k === g ? ' cur' : '');
+    a.replaceWith(dd);
+    if (k === g) a.classList.add('on');
+    dd.innerHTML = `<button class="chev" aria-label="${a.textContent} menu" aria-expanded="false"></button><div class="menu">` +
+      GROUPS[k].map(([h, t]) => `<a href="${h}"${norm(h) === here ? ' class="on"' : ''}>${t}</a>`).join('') + '</div>';
+    dd.prepend(a);
+    dd.querySelector('.chev').onclick = e => {
+      e.stopPropagation();
+      document.querySelectorAll('.dd.open').forEach(o => { if (o !== dd) { o.classList.remove('open'); o.querySelector('.chev').setAttribute('aria-expanded', 'false') } });
+      dd.querySelector('.chev').setAttribute('aria-expanded', dd.classList.toggle('open'));
+    };
+  });
+  const close = () => document.querySelectorAll('.dd.open').forEach(o => { o.classList.remove('open'); o.querySelector('.chev').setAttribute('aria-expanded', 'false') });
+  document.addEventListener('click', close); document.addEventListener('keydown', e => { if (e.key === 'Escape') close() });
+  const navEl = document.querySelector('.nav');
+  if (navEl) addEventListener('scroll', () => navEl.classList.toggle('scrolled', scrollY > 4), { passive: true });
   const hero = document.querySelector('.hero .in');
   if (hero && g) hero.insertAdjacentHTML('beforeend', '<div class="sub">' + GROUPS[g].map(([h, t]) => `<a href="${h}"${norm(h) === here ? ' class="on"' : ''}>${t}</a>`).join('') + '</div>');
 }
