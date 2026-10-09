@@ -173,3 +173,15 @@ main>*:nth-child(2){animation-delay:.04s}main>*:nth-child(3){animation-delay:.08
 .sel .menu li:hover,.sel .menu li.act{background:#ffffff14}
 .sel .menu li[aria-selected=true]{color:var(--accent);background:#22d3ee14}
 .sel .menu li[aria-selected=true]::after{content:"✓"}
+
+/* planner action buttons */
+.dt button,#plan button{display:inline-flex;align-items:center;gap:6px;background:transparent;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:6px 16px;min-height:34px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
+.dt button:hover,#plan button:hover{background:var(--accent);color:#06222a;border-color:var(--accent);box-shadow:0 0 0 3px #22d3ee33}
+.dt button:active,#plan button:active{transform:scale(.95)}
+.dt button[data-out]::before{content:"\21C4"}
+.dt button[data-in]{background:var(--accent);color:#06222a}
+.dt button[data-in]::before{content:"\2713"}
+.dt button[data-in]:hover{background:#67e8f9;box-shadow:0 0 0 3px #22d3ee55}
+#plan button[data-rm]{color:#f87171;border-color:#f87171}
+#plan button[data-rm]:hover{background:#f87171;color:#2a0a0a;box-shadow:0 0 0 3px #f8717133}
+#plan button[data-rm]::before{content:"\2715"}
