@@ -66,10 +66,19 @@ function table(el, cols, rows, o = {}) {
   return nr => { rows = nr; draw() };
 }
 
-// Nav highlight
+// Navigation: four groups in the top bar, sibling pages as a tab strip inside the hero banner
 {
-  const here = location.pathname.split('/').pop() || 'index.html';
-  document.querySelectorAll('.links a').forEach(a => { if ((a.getAttribute('href') === './' ? 'index.html' : a.getAttribute('href')) === here) a.classList.add('on') });
+  const GROUPS = {
+    plan: [['./', 'Fixtures'], ['chips.html', 'Chips'], ['planner.html', 'Planner']],
+    market: [['prices.html', 'Prices'], ['players.html', 'Players'], ['captains.html', 'Captains'], ['news.html', 'News'], ['elite.html', 'Elite']],
+    live: [['live.html', 'Live'], ['league.html', 'League']],
+    insights: [['totw.html', 'Team of the Week'], ['accuracy.html', 'Accuracy']],
+  };
+  const here = location.pathname.split('/').pop() || 'index.html', norm = h => h === './' ? 'index.html' : h;
+  const g = Object.keys(GROUPS).find(k => GROUPS[k].some(([h]) => norm(h) === here));
+  document.querySelectorAll('.links a').forEach(a => { if (a.dataset.g === g) a.classList.add('on') });
+  const hero = document.querySelector('.hero .in');
+  if (hero && g) hero.insertAdjacentHTML('beforeend', '<div class="sub">' + GROUPS[g].map(([h, t]) => `<a href="${h}"${norm(h) === here ? ' class="on"' : ''}>${t}</a>`).join('') + '</div>');
 }
 
 // Ads load only after consent. Fill these in once AdSense approves the site:
