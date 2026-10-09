@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FPL Fixture Ticker – FPLSnap</title>
+<meta name="description" content="Fast, free FPL fixture ticker. Colour-coded fixture difficulty for all 20 teams, attack and defence views, your own custom FDR saved on your device. No login.">
+<link rel="canonical" href="https://fplsnap.com/">
+<link rel="manifest" href="manifest.webmanifest">
+<meta property="og:type" content="website">
+<meta property="og:title" content="FPL Fixture Ticker – FPLSnap">
+<meta property="og:description" content="Fixture difficulty for all 20 teams at a glance. Free, fast, no login.">
+<meta property="og:url" content="https://fplsnap.com/">
+<meta name="twitter:card" content="summary">
+<meta name="theme-color" content="#0f172a">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"FPLSnap","url":"https://fplsnap.com/","description":"Free FPL fixture difficulty ticker"}</script>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!--nav-->
+<main>
+<h1>FPL Fixture Ticker</h1>
+<p><b id="dl" style="color:var(--text)"></b><br>Upcoming fixture difficulty at a glance. <span id="upd"></span></p>
+<div class="ad" id="ad1">Ad slot</div>
+<div class="cards" id="cards"></div>
+<div class="bar">
+<input id="q" type="search" placeholder="Filter team…" aria-label="Filter team">
+<select id="sort" aria-label="Sort">
+<option value="az">A–Z</option><option value="easy">Easiest fixtures</option><option value="hard">Hardest fixtures</option>
+</select>
+<select id="m" aria-label="Difficulty type">
+<option value="r">Overall FDR</option><option value="a">Attack (goals conceded by opp.)</option><option value="d">Defence (goals scored by opp.)</option>
+</select>
+<select id="s" aria-label="Start gameweek"></select>
+<select id="n" aria-label="Number of gameweeks"></select>
+</div>
+<div class="bar">
+<label><input type="checkbox" id="k"> Kickoffs</label>
+<button id="edit">Custom FDR</button>
+<button id="csv">CSV</button>
+<button id="copy">Copy link</button>
+</div>
+<div id="fdr">
+<b>Rate each opponent 1 (easy) – 5 (hard)</b> for fixtures at Home (H) or Away (A). Overrides every difficulty type. Saved on this device only.
+<div class="g" id="fdrg"></div>
+<button id="reset" style="margin-top:8px">Reset to official ratings</button>
+</div>
+<div class="wrap"><table id="t"></table></div>
+<div class="ad" id="ad2">Ad slot</div>
+</main>
+<div class="ad side" id="ad3">Ad slot</div>
+<!--foot-->
+<script id="d" type="application/json">null</script>
+<script src="app.js"></script>
+<script>
+const D=JSON.parse($('d').textContent);
+const last=Math.max(...D.teams.flatMap(t=>t.f.map(f=>f.g)));
+// custom keys: "<opponentId>h" / "<opponentId>a" = rating for fixtures played at home / away vs that opponent
+let custom=store.get('fdr',{}), pins=new Set(store.get('pins',[]));
+// URL hash (shared link) beats saved prefs, which beat defaults
+const P={s:D.ev.id,n:6,o:'az',m:'r',q:'',k:0,...store.get('prefs',{}),...Object.fromEntries(new URLSearchParams(location.hash.slice(1)))};
+const T=Object.fromEntries(D.teams.map(t=>[t.id,t]));
+const rate=f=>custom[f.o+(f.h?'h':'a')]??f[P.m];
+const when=k=>new Date(k).toLocaleString([],{weekday:'short',hour:'2-digit',minute:'2-digit'});
+let view; // {gws, rows} of the current render, reused by CSV
+function render(){
+  const s=+$('s').value,n=+$('n').value,q=$('q').value.trim().toLowerCase(),sort=$('sort').value;
+  const gws=Array.from({length:Math.min(n,last-s+1)},(_,i)=>s+i);
+  const inWin=t=>t.f.filter(f=>f.g>=s&&f.g<s+n);
+  const avg=t=>{const fs=inWin(t);return fs.length?fs.reduce((a,f)=>a+rate(f),0)/fs.length:null};
+  const ranked=[...D.teams].filter(t=>avg(t)!=null).sort((a,b)=>avg(a)-avg(b));
+  const rows=D.teams.filter(t=>!q||t.name.toLowerCase().includes(q)||t.short.toLowerCase().includes(q));
+  if(sort!=='az')rows.sort((a,b)=>((avg(a)??99)-(avg(b)??99))*(sort==='easy'?1:-1));
+  rows.sort((a,b)=>pins.has(b.id)-pins.has(a.id)); // stable: pinned teams float to the top
+  view={gws,rows,avg};
+  // summary cards
+  const row=t=>`<div class="row">${chip(t.short,1)}${t.short}<b><span class="pill f${Math.round(avg(t))}">${avg(t).toFixed(1)}</span></b></div>`;
+  const dgw=[],bgw=[];
+  for(const g of gws){const c={};D.teams.forEach(t=>c[t.id]=t.f.filter(f=>f.g===g).length);
+    const d=D.teams.filter(t=>c[t.id]>1),b=D.teams.filter(t=>!c[t.id]);
+    if(d.length)dgw.push(`<div class="row">GW${g} <b>${d.map(t=>t.short).join(' ')}</b></div>`);
+    if(b.length)bgw.push(`<div class="row">GW${g} <b>${b.length>6?b.length+' teams':b.map(t=>t.short).join(' ')}</b></div>`)}
+  $('cards').innerHTML=`<div class="card"><h3>Easiest run · next ${gws.length}</h3>${ranked.slice(0,3).map(row).join('')}</div>
+  <div class="card"><h3>Toughest run · next ${gws.length}</h3>${ranked.slice(-3).reverse().map(row).join('')}</div>
+  <div class="card"><h3>Doubles &amp; blanks</h3>${dgw.length?'<div style="color:var(--mute);font-size:12px">Double gameweeks</div>'+dgw.join(''):''}${bgw.length?'<div style="color:var(--mute);font-size:12px">Blank gameweeks</div>'+bgw.join(''):''}${dgw.length||bgw.length?'':'<div class="row" style="color:var(--mute)">None in this window</div>'}</div>`;
+  $('t').innerHTML='<caption>Opponent, (H)ome/(A)way and difficulty 1 (easy) to 5 (hard). Cyan outline = double gameweek. ★ pins a team.</caption><thead><tr><th scope="col">Team'+gws.map(g=>'<th scope="col">GW'+g).join('')+'<th scope="col">Avg</tr></thead><tbody>'+rows.map(t=>{
+    const pin=pins.has(t.id),a=avg(t);
+    return'<tr><td><button class="tm" data-pin="'+t.id+'" aria-pressed="'+pin+'" aria-label="Pin '+t.name+'">'+chip(t.short)+t.short+'<i>'+(pin?'★':'☆')+'</i></button>'+gws.map(g=>{
+      const fs=t.f.filter(f=>f.g===g);
+      if(!fs.length)return'<td class="c"><div class="fx x">–<small>BLANK</small></div>';
+      return'<td class="c'+(fs.length>1?' dgw':'')+'">'+fs.map(f=>'<div class="fx f'+rate(f)+'">'+T[f.o].short+'<small>'+(f.h?'H':'A')+' · '+rate(f)+'</small>'+(P.k&&f.k?'<small>'+when(f.k)+'</small>':'')+'</div>').join('')}).join('')+'<td class="avg">'+(a==null?'–':a.toFixed(1))}).join('')+'</tbody>';
+  const sp=new URLSearchParams({s,n,o:sort,m:P.m,k:P.k?1:0});if(q)sp.set('q',q);
+  history.replaceState(null,'','#'+sp);
+}
+const save=()=>{Object.assign(P,{s:+$('s').value,n:+$('n').value,o:$('sort').value,m:$('m').value,k:$('k').checked?1:0,q:$('q').value});store.set('prefs',{...P,s:undefined,q:undefined});render()};
+// Deadline countdown (updates every minute)
+const tick=()=>{
+  const ms=new Date(D.ev.dl)-Date.now();
+  if(ms<=0){$('dl').textContent='GW'+D.ev.id+' deadline passed';return}
+  const d=Math.floor(ms/864e5),h=Math.floor(ms/36e5)%24,m=Math.floor(ms/6e4)%60;
+  $('dl').textContent='GW'+D.ev.id+' deadline in '+(d?d+'d ':'')+(d||h?h+'h ':'')+m+'m';
+};
+tick();setInterval(tick,6e4);
+$('upd').textContent='Fixtures updated '+new Date(D.updated).toLocaleString([],{dateStyle:'short',timeStyle:'short'});
+$('s').innerHTML=Array.from({length:last-D.ev.id+1},(_,i)=>`<option value=${D.ev.id+i}>From GW${D.ev.id+i}`).join('');
+$('n').innerHTML=[5,6,7,8].map(i=>`<option value=${i}>${i} GWs`).join('');
+const clamp=(v,lo,hi)=>Math.min(hi,Math.max(lo,v));
+$('s').value=clamp(+P.s,D.ev.id,last);$('n').value=[5,6,7,8].includes(+P.n)?+P.n:6;
+$('sort').value=P.o;$('m').value=P.m;$('q').value=P.q;$('k').checked=!!+P.k;
+$('fdrg').innerHTML=D.teams.map(t=>`<label>${t.short}<span>`+['h','a'].map(v=>`<select data-key="${t.id}${v}" aria-label="${t.name} rating for fixtures ${v==='h'?'at home':'away'}"><option value="">${v.toUpperCase()} –`+[1,2,3,4,5].map(i=>`<option value=${i}>${v.toUpperCase()} ${i}`).join('')+'</select>').join(' ')+'</span></label>').join('');
+const sync=()=>$('fdrg').querySelectorAll('select').forEach(s=>s.value=custom[s.dataset.key]??'');
+sync();render();
+['s','n','sort','m','k'].forEach(id=>$(id).onchange=save);$('q').oninput=save;
+$('t').onclick=e=>{const b=e.target.closest('[data-pin]');if(!b)return;const id=+b.dataset.pin;pins.has(id)?pins.delete(id):pins.add(id);store.set('pins',[...pins]);render()};
+$('edit').onclick=()=>$('fdr').classList.toggle('on');
+$('fdrg').onchange=e=>{const v=e.target.value,k=e.target.dataset.key;if(v)custom[k]=+v;else delete custom[k];store.set('fdr',custom);render()};
+$('reset').onclick=()=>{custom={};store.set('fdr',custom);sync();render()};
+$('copy').onclick=()=>navigator.clipboard?.writeText(location.href).then(()=>{$('copy').textContent='Copied!';setTimeout(()=>$('copy').textContent='Copy link',1500)});
+$('csv').onclick=()=>{
+  const {gws,rows,avg}=view,q=v=>'"'+v+'"';
+  const lines=[['Team',...gws.map(g=>'GW'+g),'Avg'].map(q).join(',')];
+  for(const t of rows)lines.push([t.name,...gws.map(g=>t.f.filter(f=>f.g===g).map(f=>T[f.o].short+'('+(f.h?'H':'A')+') '+rate(f)).join(' + ')||'-'),avg(t)?.toFixed(2)??'-'].map(q).join(','));
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([lines.join('\n')],{type:'text/csv'}));a.download='fplsnap-fixtures.csv';a.click();URL.revokeObjectURL(a.href);
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FPL Player Stats, xG &amp; Ownership – FPLSnap</title>
+<meta name="description" content="Sortable FPL player stats: points, form, xG, xA, ownership, transfers in and out. Filter by position, team and price. Free, no login.">
+<link rel="canonical" href="https://fplsnap.com/players.html">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!--nav-->
+<main>
+<h1>FPL Player Stats</h1>
+<p>Click any column to sort. <span id="upd"></span></p>
+<div class="ad">Ad slot</div>
+<div class="tabs" id="tabs">
+<button data-v="ov" aria-pressed="true">Overview</button>
+<button data-v="xp" aria-pressed="false">Expected (xG/xA)</button>
+<button data-v="tr" aria-pressed="false">Transfers</button>
+<button data-v="ow" aria-pressed="false">Ownership</button>
+</div>
+<div class="bar">
+<input id="q" type="search" placeholder="Filter player…" aria-label="Filter player">
+<select id="pos" aria-label="Position"><option value="0">All positions</option><option value="1">GKP</option><option value="2">DEF</option><option value="3">MID</option><option value="4">FWD</option></select>
+<select id="tm" aria-label="Team"><option value="0">All teams</option></select>
+<select id="px" aria-label="Max price"></select>
+</div>
+<div class="wrap"><table id="t"></table></div>
+<p style="margin-top:12px" id="note"></p>
+<div class="ad">Ad slot</div>
+</main>
+<!--foot-->
+<script src="app.js"></script>
+<script>
+let S, redraw, view = 'ov';
+const who = p => `<span style="display:inline-flex;align-items:center;gap:6px">${chip(S.teams[p.t].short, 1)}<b>${esc(p.n)}</b></span>`;
+const base = [
+  { h: 'Player', f: who, v: p => p.n.toLowerCase(), asc: 1 },
+  { h: 'Pos', f: p => `<span class="pos">${POS[p.e]}</span>`, v: p => p.e, asc: 1 },
+  { h: 'Price', cls: 'n', f: p => '£' + p.c.toFixed(1), v: p => p.c },
+];
+const num = (h, k, d = 0, suf = '') => ({ h, cls: 'n', f: p => p[k].toFixed(d) + suf, v: p => p[k] });
+const net = p => p.ti - p.to;
+const views = {
+  ov: { cols: [...base, num('Pts', 'pt'), num('Form', 'f', 1), num('PPG', 'pg', 1), num('Own', 'o', 1, '%'), num('Mins', 'm'), num('GW pts', 'ev')], sort: 3,
+    note: 'Pts = season total; GW pts = current gameweek.' },
+  xp: { cols: [...base, num('xG', 'xg', 2), num('xA', 'xa', 2), num('xGI', 'xi', 2), num('xGC', 'xc', 2), num('G', 'g'), num('A', 'a'), num('ICT', 'ict', 1)], sort: 5,
+    note: 'Expected stats come from the official FPL data feed. xGC = expected goals conceded.' },
+  tr: { cols: [...base, num('In (GW)', 'ti'), num('Out (GW)', 'to'),
+    { h: 'Net', cls: 'n', f: p => `<span class="${net(p) < 0 ? 'dn' : 'up'}">${net(p).toLocaleString()}</span>`, v: net }, num('Own', 'o', 1, '%')], sort: 5,
+    note: 'Transfers this gameweek, across all FPL managers.' },
+  ow: { cols: [...base, num('Own', 'o', 1, '%'), num('Pts', 'pt'), num('Form', 'f', 1)], sort: 3,
+    note: 'Sorted by ownership, the most owned players form the template team.' },
+};
+function rows() {
+  const q = $('q').value.trim().toLowerCase(), pos = +$('pos').value, tm = +$('tm').value, px = +$('px').value;
+  return S.players.filter(p => (!pos || p.e === pos) && (!tm || p.t === tm) && p.c <= px && (!q || p.n.toLowerCase().includes(q)));
+}
+function show() {
+  const v = views[view];
+  redraw = table($('t'), v.cols, rows(), { sort: v.sort, limit: 150 });
+  $('note').textContent = v.note + ' Showing the top 150 matches.';
+}
+loadSite().then(s => {
+  S = s;
+  $('upd').textContent = 'Updated ' + new Date(S.updated).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+  $('tm').innerHTML += Object.entries(S.teams).sort((a, b) => a[1].name.localeCompare(b[1].name)).map(([id, t]) => `<option value="${id}">${t.name}</option>`).join('');
+  $('px').innerHTML = Array.from({ length: 21 }, (_, i) => 15 - i * .5).map(v => `<option value="${v}">${v === 15 ? 'Any price' : 'Max £' + v.toFixed(1)}</option>`).join('');
+  show();
+  $('tabs').onclick = e => { const b = e.target.closest('button'); if (!b) return; view = b.dataset.v; [...$('tabs').children].forEach(x => x.setAttribute('aria-pressed', x === b)); show() };
+  $('q').oninput = $('pos').onchange = $('tm').onchange = $('px').onchange = () => redraw(rows());
+});
+</script>
+</body>
+</html>

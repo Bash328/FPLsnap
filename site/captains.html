@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FPL Captain Picks – FPLSnap</title>
+<meta name="description" content="FPL captain picks for the next gameweek ranked by expected points, form and fixture difficulty, with differential options. Free, no login.">
+<link rel="canonical" href="https://fplsnap.com/captains.html">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!--nav-->
+<main>
+<h1>FPL Captain Picks</h1>
+<p id="sub"></p>
+<div class="ad">Ad slot</div>
+<div class="cards" id="top"></div>
+<div class="bar">
+<select id="pos" aria-label="Position"><option value="0">All positions</option><option value="2">DEF</option><option value="3">MID</option><option value="4">FWD</option></select>
+<label><input type="checkbox" id="diff"> Differentials only (&lt;10% owned)</label>
+</div>
+<div class="wrap"><table id="t"></table></div>
+<p style="margin-top:12px">Ranked by FPL's own expected points for the next gameweek. Expected points already factor in the fixture, so use form and ownership to choose between close calls. Players who are injured or suspended are excluded.</p>
+<div class="ad">Ad slot</div>
+</main>
+<!--foot-->
+<script src="app.js"></script>
+<script>
+let S, redraw;
+const fx = p => S.teams[p.t].nx.map(f => `<span class="pill f${f.r}">${S.teams[f.o].short} ${f.h ? 'H' : 'A'}</span>`).join(' ') || '<span style="color:var(--mute)">Blank</span>';
+const who = p => `<span style="display:inline-flex;align-items:center;gap:6px">${chip(S.teams[p.t].short, 1)}<b>${esc(p.n)}</b></span>`;
+const cols = [
+  { h: 'Player', f: who, v: p => p.n.toLowerCase(), asc: 1 },
+  { h: 'Pos', f: p => `<span class="pos">${POS[p.e]}</span>`, v: p => p.e, asc: 1 },
+  { h: 'Price', cls: 'n', f: p => '£' + p.c.toFixed(1), v: p => p.c },
+  { h: 'Exp pts', cls: 'n', f: p => `<b>${p.ep.toFixed(1)}</b>`, v: p => p.ep },
+  { h: 'Form', cls: 'n', f: p => p.f.toFixed(1), v: p => p.f },
+  { h: 'Fixture', f: fx, v: p => S.teams[p.t].nx.length },
+  { h: 'Owned', cls: 'n', f: p => p.o + '%' + (p.o < 10 ? ' <span class="pill" style="background:#7c3aed">Diff</span>' : ''), v: p => p.o },
+  { h: 'Fit', cls: 'n', f: p => p.ch == null ? '100%' : p.ch + '%', v: p => p.ch ?? 100 },
+];
+const pool = () => S.players.filter(p => p.e > 1 && p.ep > 0 && p.st !== 'i' && p.st !== 's' && (p.ch ?? 100) >= 50);
+const rows = () => pool().filter(p => (!+$('pos').value || p.e === +$('pos').value) && (!$('diff').checked || p.o < 10));
+loadSite().then(s => {
+  S = s;
+  $('sub').textContent = 'GW' + S.ev.id + ' · updated ' + new Date(S.updated).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+  $('top').innerHTML = pool().sort((a, b) => b.ep - a.ep).slice(0, 3).map((p, i) => `<div class="card"><h3>${['Top pick', 'Runner-up', 'Third'][i]}</h3><div class="row">${chip(S.teams[p.t].short)}<b style="margin-left:0">${esc(p.n)}</b><b>${p.ep.toFixed(1)} pts</b></div><div class="row" style="color:var(--mute)">${fx(p)}<span style="margin-left:auto">${p.o}% owned</span></div></div>`).join('');
+  redraw = table($('t'), cols, rows(), { sort: 3, limit: 30 });
+  $('pos').onchange = $('diff').onchange = () => redraw(rows());
+});
+</script>
+</body>
+</html>

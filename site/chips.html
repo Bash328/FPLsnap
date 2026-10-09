@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FPL Chip Strategy – FPLSnap</title>
+<meta name="description" content="FPL chip timing: chip windows, double and blank gameweeks, and the best gameweek for Free Hit, Bench Boost and Triple Captain. Free, no login.">
+<link rel="canonical" href="https://fplsnap.com/chips.html">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!--nav-->
+<main>
+<h1>FPL Chip Strategy</h1>
+<p id="sub"></p>
+<div class="ad">Ad slot</div>
+<div class="cards" id="cards"></div>
+<h2>Double and blank gameweeks</h2>
+<div class="wrap"><table id="t"></table></div>
+<p style="margin-top:12px">Doubles and blanks come from the current fixture list and change when matches are rearranged. Chip windows come from the official game settings. Rule of thumb: Bench Boost and Triple Captain shine in big doubles, Free Hit in big blanks, Wildcard before a run of good fixtures.</p>
+<div class="ad">Ad slot</div>
+</main>
+<!--foot-->
+<script src="app.js"></script>
+<script>
+const NAME = { wildcard: 'Wildcard', freehit: 'Free Hit', bboost: 'Bench Boost', '3xc': 'Triple Captain' };
+loadSite().then(S => {
+  const from = S.ev.id, T = S.teams;
+  $('sub').textContent = 'From GW' + from + ' · updated ' + new Date(S.updated).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+  const gws = Object.entries(S.gw).map(([g, x]) => ({ g: +g, ...x })).filter(x => x.g >= from);
+  const best = (a, z, k) => gws.filter(x => x.g >= a && x.g <= z && x[k].length).sort((p, q) => q[k].length - p[k].length || p.g - q.g)[0];
+  const tip = c => {
+    if (c.n === 'wildcard') return 'Use before a run of good fixtures or when your squad has several injuries.';
+    const k = c.n === 'freehit' ? 'bgw' : 'dgw', b = best(Math.max(c.a, from), c.z, k);
+    return b ? `Best window so far: GW${b.g}, ${b[k].length} teams ${k === 'dgw' ? 'play twice' : 'blank'} (${b[k].map(i => T[i].short).join(' ')}).`
+      : (k === 'dgw' ? 'No doubles scheduled yet. They are usually confirmed later in the season.' : 'No blanks scheduled yet.');
+  };
+  $('cards').innerHTML = S.chips.filter(c => c.z >= from).map(c => `<div class="card"><h3>${NAME[c.n] || c.n} · GW${Math.max(c.a, from)}–${c.z}</h3><div style="color:var(--mute)">${tip(c)}</div></div>`).join('');
+  const rows = gws.filter(x => x.dgw.length || x.bgw.length);
+  const tm = ids => ids.map(i => T[i].short).join(' ') || '–';
+  table($('t'), [
+    { h: 'GW', f: x => 'GW' + x.g, v: x => x.g, asc: 1 },
+    { h: 'Doubles', f: x => `<span class="up">${x.dgw.length}</span> ${tm(x.dgw)}`, v: x => x.dgw.length },
+    { h: 'Blanks', f: x => `<span class="dn">${x.bgw.length}</span> ${x.bgw.length > 8 ? '' : tm(x.bgw)}`, v: x => x.bgw.length },
+  ], rows, { sort: 0, limit: 40 });
+  if (!rows.length) $('t').innerHTML = '<tbody><tr><td class="w">No doubles or blanks scheduled yet.</td></tr></tbody>';
+});
+</script>
+</body>
+</html>

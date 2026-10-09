@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FPL Price Changes &amp; Predictions – FPLSnap</title>
+<meta name="description" content="FPL price changes: players closest to a rise or fall tonight, with progress, likelihood and net transfers. Free, no login.">
+<link rel="canonical" href="https://fplsnap.com/prices.html">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!--nav-->
+<main>
+<h1>FPL Price Changes</h1>
+<p>Players closest to a price rise or fall. <span id="upd"></span></p>
+<div class="ad">Ad slot</div>
+<div class="tabs" id="tabs">
+<button data-v="up" aria-pressed="true">Rises</button>
+<button data-v="dn" aria-pressed="false">Falls</button>
+<button data-v="done" aria-pressed="false">Changed this GW</button>
+</div>
+<div class="bar">
+<input id="q" type="search" placeholder="Filter player or team…" aria-label="Filter player or team">
+<select id="pos" aria-label="Position"><option value="0">All positions</option><option value="1">GKP</option><option value="2">DEF</option><option value="3">MID</option><option value="4">FWD</option></select>
+</div>
+<div class="wrap"><table id="t"></table></div>
+<p style="margin-top:12px">Progress is FPL's own price-change meter from the official data feed: 100% means a change is due at the next update, and "Tonight" is its projection. FPL applies changes roughly once a day and these are estimates, not guarantees.</p>
+<div class="ad">Ad slot</div>
+</main>
+<!--foot-->
+<script src="app.js"></script>
+<script>
+let S, redraw, view = 'up';
+const label = l => ['', 'Very low', 'Low', 'Medium', 'High', 'Very high'][Math.abs(l)] || '–';
+const cols = () => [
+  { h: 'Player', f: p => `<span style="display:inline-flex;align-items:center;gap:6px">${chip(S.teams[p.t].short, 1)}<b>${esc(p.n)}</b>${p.pl ? ' 🔒' : ''}</span>`, v: p => p.n.toLowerCase(), asc: 1 },
+  { h: 'Pos', f: p => `<span class="pos">${POS[p.e]}</span>`, v: p => p.e, asc: 1 },
+  { h: 'Price', cls: 'n', f: p => '£' + p.c.toFixed(1), v: p => p.c },
+  { h: 'Progress', f: p => { const a = Math.min(Math.abs(p.pp), 100); return `<span class="meter ${p.pp < 0 ? 'dn' : 'up'}"><i style="width:${a}%"></i></span> ${p.pp.toFixed(0)}%` }, v: p => Math.abs(p.pp) },
+  { h: 'Tonight', cls: 'n', f: p => `<span class="${p.pr < 0 ? 'dn' : 'up'}">${p.pr.toFixed(0)}%</span> · ${label(p.lk)}`, v: p => Math.abs(p.pr) },
+  { h: 'Owned', cls: 'n', f: p => p.o + '%', v: p => p.o },
+  { h: 'Net transfers', cls: 'n', f: p => { const n = p.ti - p.to; return `<span class="${n < 0 ? 'dn' : 'up'}">${n.toLocaleString()}</span>` }, v: p => p.ti - p.to },
+  { h: 'This GW', cls: 'n', f: p => p.cc ? `<span class="${p.cc < 0 ? 'dn' : 'up'}">${p.cc > 0 ? '+' : ''}${p.cc.toFixed(1)}</span>` : '–', v: p => Math.abs(p.cc) },
+];
+function rows() {
+  const q = $('q').value.trim().toLowerCase(), pos = +$('pos').value;
+  return S.players.filter(p => (!pos || p.e === pos) && (!q || p.n.toLowerCase().includes(q) || S.teams[p.t].short.toLowerCase().includes(q)) &&
+    (view === 'up' ? p.pp > 0 : view === 'dn' ? p.pp < 0 : p.cc !== 0));
+}
+function show() {
+  const sortCol = view === 'done' ? 7 : 3;
+  redraw = table($('t'), cols(), rows(), { sort: sortCol, limit: 60 });
+}
+loadSite().then(s => {
+  S = s;
+  $('upd').textContent = 'Updated ' + new Date(S.updated).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+  show();
+  $('tabs').onclick = e => { const b = e.target.closest('button'); if (!b) return; view = b.dataset.v; [...$('tabs').children].forEach(x => x.setAttribute('aria-pressed', x === b)); show() };
+  $('q').oninput = $('pos').onchange = () => redraw(rows());
+});
+</script>
+</body>
+</html>
