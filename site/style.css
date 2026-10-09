@@ -71,3 +71,18 @@ footer{color:var(--mute);font-size:12px;padding-bottom:24px}
 #cb{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:12px 16px;display:none;gap:8px;align-items:center;flex-wrap:wrap;z-index:9}
 #cb.on{display:flex}#cb span{flex:1;min-width:200px}
 #cb button{background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:10px 14px;min-height:44px;font:inherit}
+.msg{background:var(--card);border-left:3px solid var(--accent);border-radius:6px;padding:10px 12px;margin:12px 0;color:var(--mute)}
+.msg.err{border-color:#f87171}
+.bar .go{border-color:var(--accent);color:var(--accent)}
+.bench{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;padding:8px;background:#0b1220;border-radius:8px}
+.bench .pl{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600}
+.bench .pl small{background:var(--card);border-radius:4px;padding:1px 6px}
+.fxp{display:inline-flex;gap:3px}
+.fxp .pill{font-size:11px;padding:2px 0;border-radius:5px;width:48px;text-align:center;white-space:nowrap}
+.fxp .pill.x{background:var(--card);color:var(--mute)}
+.panel{background:var(--card);border-radius:10px;padding:12px;margin:12px 0}
+.panel h3{margin:0 0 8px;font-size:1rem}
+.fix{background:var(--card);border-radius:10px;padding:10px 12px}
+.fix h3{margin:0 0 6px;font-size:.95rem;display:flex;justify-content:space-between}
+.fix .r{display:flex;justify-content:space-between;padding:2px 0;font-size:14px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px}

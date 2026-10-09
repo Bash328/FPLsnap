@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FPL Live Points, Bonus &amp; Defensive Contributions – FPLSnap</title>
+<meta name="description" content="Live FPL points for your team with just your Team ID, plus live bonus points (BPS) and defensive contribution trackers. Free, no login.">
+<link rel="canonical" href="https://fplsnap.com/live.html">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!--nav-->
+<main>
+<h1>FPL Live</h1>
+<p id="sub"></p>
+<div class="ad">Ad slot</div>
+<div class="tabs" id="tabs">
+<button data-v="team" aria-pressed="true">My team</button>
+<button data-v="bonus" aria-pressed="false">Bonus points</button>
+<button data-v="dc" aria-pressed="false">Defensive contributions</button>
+</div>
+<div id="team">
+<div class="bar"><input id="tid" inputmode="numeric" placeholder="Your FPL Team ID" aria-label="FPL Team ID"><button id="go" class="go">Load</button></div>
+</div>
+<div id="out"></div>
+<div class="ad">Ad slot</div>
+</main>
+<!--foot-->
+<script src="app.js"></script>
+<script>
+let S, P, view = 'team', gw, timer;
+const pl = id => P[id] || { n: '#' + id, t: 0, e: 0, c: 0 };
+const short = id => S.teams[id]?.short || '?';
+const msg = (t, err) => $('out').innerHTML = `<div class="msg${err ? ' err' : ''}">${t}</div>`;
+const ago = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+async function myTeam(id) {
+  msg('Loading…');
+  try {
+    const [en, pk, live, hist] = await Promise.all([fpl(`entry/${id}/`), fpl(`entry/${id}/event/${gw}/picks/`), fpl(`event/${gw}/live/`), fpl(`entry/${id}/history/`)]);
+    const sc = scorePicks(pk, live), h = pk.entry_history, avg = S.evs.find(e => e.id === gw)?.avg;
+    const prev = hist.current.find(c => c.event === gw - 1)?.total_points ?? 0;
+    const cap = sc.rows.find(r => r.is_captain), vc = sc.rows.find(r => r.is_vice_captain);
+    const chipName = { freehit: 'Free Hit', wildcard: 'Wildcard', bboost: 'Bench Boost', '3xc': 'Triple Captain' }[pk.active_chip];
+    const cell = r => `<div class="pl">${chip(short(pl(r.element).t))}<span>${esc(pl(r.element).n)}${r === cap ? ' (C)' : r === vc ? ' (V)' : ''}</span><small>${r.v}</small></div>`;
+    const xi = sc.rows.filter(r => r.start), bench = sc.rows.filter(r => !r.start);
+    const line = e => `<div class="line">${xi.filter(r => pl(r.element).e === e).map(cell).join('')}</div>`;
+    $('out').innerHTML = `<h2>${esc(en.name)} <span style="color:var(--mute);font-weight:400">· ${esc(en.player_first_name)} ${esc(en.player_last_name)}</span></h2>
+    <div class="cards">
+      <div class="card"><h3>GW${gw} points (live)</h3><div style="font-size:2rem;font-weight:800">${sc.total}</div><div style="color:var(--mute)">${avg != null ? 'Average ' + avg + ' · ' + (sc.total - avg >= 0 ? '+' : '') + (sc.total - avg) : ''}${sc.cost ? ' · −' + sc.cost + ' hit' : ''}</div></div>
+      <div class="card"><h3>Estimated total</h3><div style="font-size:2rem;font-weight:800">${prev + sc.total}</div><div style="color:var(--mute)">Overall rank (official, last update): ${h.overall_rank?.toLocaleString() ?? '–'}</div></div>
+      <div class="card"><h3>Squad</h3><div class="row">Value<b>£${(h.value / 10).toFixed(1)}m</b></div><div class="row">Bank<b>£${(h.bank / 10).toFixed(1)}m</b></div>${chipName ? `<div class="row">Chip<b><span class="pill" style="background:#7c3aed">${chipName}</span></b></div>` : ''}</div>
+    </div>
+    <div class="pitch">${[4, 3, 2, 1].map(line).join('')}</div>
+    <div class="bench"><b style="color:var(--mute);font-size:12px">Bench</b>${bench.map(cell).join('')}</div>
+    <p style="margin-top:12px">Live points use the official live feed and update about once a minute. Estimated total adds this gameweek's live points to your total after last gameweek. We can't estimate live overall rank without the rank distribution, so the rank shown is FPL's last official one.</p>
+    <p style="color:var(--mute);font-size:12px">Updated ${ago()}</p>`;
+  } catch (e) { msg(String(e).includes('404') ? 'Team not found. Check the ID.' : 'Could not load data. Try again in a minute.', 1) }
+}
+
+async function bonus() {
+  msg('Loading…');
+  try {
+    const fx = (await fpl(`fixtures/?event=${gw}`)).filter(f => f.started);
+    if (!fx.length) return msg('No fixtures have kicked off in this gameweek yet.');
+    $('out').innerHTML = '<div class="grid2">' + fx.map(f => {
+      const bps = f.stats.find(s => s.identifier === 'bps'), list = bps ? [...bps.h, ...bps.a] : [];
+      const b = bonusFor(list), top = [...list].sort((a, c) => c.value - a.value).slice(0, 6);
+      return `<div class="fix"><h3><span>${short(f.team_h)} ${f.team_h_score ?? 0}–${f.team_a_score ?? 0} ${short(f.team_a)}</span><span style="color:var(--mute);font-weight:400">${f.finished ? 'FT' : f.minutes + "'"}</span></h3>` +
+        top.map(x => `<div class="r"><span>${esc(pl(x.element).n)}</span><span>${x.value} BPS ${b[x.element] ? `<span class="pill" style="background:#7c3aed">+${b[x.element]}</span>` : ''}</span></div>`).join('') + '</div>';
+    }).join('') + `</div><p style="margin-top:12px">Provisional bonus from live BPS (3/2/1, ties shared). Bonus is only official once FPL confirms it after the match.</p><p style="color:var(--mute);font-size:12px">Updated ${ago()}</p>`;
+  } catch { msg('Could not load fixtures. Try again in a minute.', 1) }
+}
+
+async function dc() {
+  msg('Loading…');
+  try {
+    const live = await fpl(`event/${gw}/live/`);
+    const rows = live.elements.filter(e => e.stats.minutes > 0 && pl(e.id).e >= 2).map(e => ({ id: e.id, m: e.stats.minutes, v: e.stats.defensive_contribution || 0, t: pl(e.id).e === 2 ? 10 : 12 }));
+    $('out').innerHTML = '<div class="wrap"><table id="t"></table></div><p style="margin-top:12px">Defenders earn 2 points for 10 defensive contributions (clearances, blocks, interceptions, tackles); midfielders and forwards need 12 (including recoveries). Counts come from the live feed.</p>' + `<p style="color:var(--mute);font-size:12px">Updated ${ago()}</p>`;
+    table($('t'), [
+      { h: 'Player', f: r => `<span style="display:inline-flex;align-items:center;gap:6px">${chip(short(pl(r.id).t), 1)}<b>${esc(pl(r.id).n)}</b></span>`, v: r => pl(r.id).n.toLowerCase(), asc: 1 },
+      { h: 'Pos', f: r => `<span class="pos">${POS[pl(r.id).e]}</span>`, v: r => pl(r.id).e, asc: 1 },
+      { h: 'Mins', cls: 'n', f: r => r.m, v: r => r.m },
+      { h: 'Contributions', cls: 'n', f: r => r.v + ' / ' + r.t, v: r => r.v / r.t },
+      { h: 'Progress', f: r => `<span class="meter up"><i style="width:${Math.min(100, r.v / r.t * 100)}%"></i></span>${r.v >= r.t ? ' ✓ +2' : ''}`, v: r => r.v / r.t },
+    ], rows, { sort: 3, limit: 60 });
+  } catch { msg('Could not load live data. Try again in a minute.', 1) }
+}
+
+function run() {
+  clearInterval(timer);
+  $('team').style.display = view === 'team' ? '' : 'none';
+  const f = view === 'team' ? () => teamId.get() ? myTeam(+teamId.get()) : ($('out').innerHTML = idHelp) : view === 'bonus' ? bonus : dc;
+  f();
+  timer = setInterval(() => { if (!document.hidden) f() }, 60000);
+}
+loadSite().then(s => {
+  S = s; gw = S.ev.cur; P = Object.fromEntries(S.players.map(p => [p.i, p]));
+  if (!gw) { $('sub').textContent = 'The season has not started yet.'; return }
+  $('sub').textContent = `Gameweek ${gw}. Refreshes every minute while this page is open.`;
+  teamInput(() => { if (view === 'team') myTeam(+teamId.get()) });
+  $('tabs').onclick = e => { const b = e.target.closest('button'); if (!b) return; view = b.dataset.v; [...$('tabs').children].forEach(x => x.setAttribute('aria-pressed', x === b)); run() };
+  if (!teamId.get()) $('out').innerHTML = idHelp;
+});
+</script>
+</body>
+</html>

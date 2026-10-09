@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FPLSnap Accuracy Record – Price &amp; Captain Predictions</title>
+<meta name="description" content="A public, checkable record of how often FPL price-change predictions and captain picks were right. Graded automatically after every price change and gameweek.">
+<link rel="canonical" href="https://fplsnap.com/accuracy.html">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!--nav-->
+<main>
+<h1>Accuracy Record</h1>
+<p>We grade ourselves in public. Every price change and every finished gameweek is checked automatically against what we showed beforehand, and nothing is edited by hand.</p>
+<div class="ad">Ad slot</div>
+<div id="out"><div class="msg">Loading…</div></div>
+<div class="ad">Ad slot</div>
+</main>
+<!--foot-->
+<script src="app.js"></script>
+<script>
+Promise.all([loadSite(), api('accuracy')]).then(([S, A]) => {
+  const P = Object.fromEntries(S.players.map(p => [p.i, p])), nm = id => P[id]?.n || '#' + id;
+  const pct = (a, b) => b ? Math.round(a / b * 100) + '%' : '–';
+  const pr = A.price, cp = A.captain;
+  const sum = k => pr.reduce((a, r) => a + r[k], 0), len = k => pr.reduce((a, r) => a + r[k].length, 0);
+  let h = '';
+  h += '<h2>Price predictions</h2>';
+  if (!pr.length) h += '<div class="msg">Tracking has just started. The first results appear after the next overnight price change.</div>';
+  else {
+    h += `<div class="cards">
+      <div class="card"><h3>Predicted rises that happened</h3><div style="font-size:2rem;font-weight:800">${pct(sum('hitRise'), len('predRise'))}</div><div style="color:var(--mute)">${sum('hitRise')} of ${len('predRise')}</div></div>
+      <div class="card"><h3>Predicted falls that happened</h3><div style="font-size:2rem;font-weight:800">${pct(sum('hitFall'), len('predFall'))}</div><div style="color:var(--mute)">${sum('hitFall')} of ${len('predFall')}</div></div>
+      <div class="card"><h3>Actual changes we caught</h3><div style="font-size:2rem;font-weight:800">${pct(sum('hitRise') + sum('hitFall'), len('actRise') + len('actFall'))}</div><div style="color:var(--mute)">${sum('hitRise') + sum('hitFall')} of ${len('actRise') + len('actFall')}</div></div></div>
+      <div class="wrap"><table id="pt"></table></div>`;
+  }
+  h += '<h2>Captain picks</h2>';
+  if (!cp.length) h += '<div class="msg">The first captain results appear once a tracked gameweek finishes.</div>';
+  else {
+    const top1 = cp.reduce((a, r) => a + r.rows[0].actual, 0) / cp.length, top3 = cp.reduce((a, r) => a + r.top3, 0) / cp.length, top10 = cp.reduce((a, r) => a + r.top10, 0) / cp.length;
+    h += `<div class="cards">
+      <div class="card"><h3>Top pick, avg points</h3><div style="font-size:2rem;font-weight:800">${top1.toFixed(1)}</div><div style="color:var(--mute)">over ${cp.length} gameweek${cp.length > 1 ? 's' : ''}</div></div>
+      <div class="card"><h3>Top 3, avg points</h3><div style="font-size:2rem;font-weight:800">${top3.toFixed(1)}</div></div>
+      <div class="card"><h3>Top 10, avg points</h3><div style="font-size:2rem;font-weight:800">${top10.toFixed(1)}</div></div></div>
+      <div class="wrap"><table id="ct"></table></div>`;
+  }
+  h += '<p style="margin-top:12px">Price rows count a player as "predicted" when FPL\'s own price-change meter showed a change was due at the last check before the change. Not every due change happens, which is what this record measures. Captain picks are the ten players with the highest expected points at the last check before the deadline, graded with their final gameweek points.</p>';
+  $('out').innerHTML = h;
+  if (pr.length) table($('pt'), [
+    { h: 'When', f: r => new Date(r.t).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }), v: r => r.t },
+    { h: 'Rises (hit / predicted / actual)', f: r => `${r.hitRise} / ${r.predRise.length} / ${r.actRise.length}`, v: r => r.actRise.length },
+    { h: 'Falls (hit / predicted / actual)', f: r => `${r.hitFall} / ${r.predFall.length} / ${r.actFall.length}`, v: r => r.actFall.length },
+    { h: 'Examples that moved', cls: 'w', f: r => esc([...r.actRise.slice(0, 3).map(i => nm(i) + ' ▲'), ...r.actFall.slice(0, 3).map(i => nm(i) + ' ▼')].join(', ')), v: r => r.t },
+  ], pr, { sort: 0, limit: 60 });
+  if (cp.length) table($('ct'), [
+    { h: 'GW', f: r => 'GW' + r.gw, v: r => r.gw },
+    { h: 'Top pick', f: r => `<b>${esc(nm(r.rows[0].id))}</b> (exp ${r.rows[0].ep.toFixed(1)})`, v: r => nm(r.rows[0].id), asc: 1 },
+    { h: 'Scored', cls: 'n', f: r => r.rows[0].actual, v: r => r.rows[0].actual },
+    { h: 'Top 3 avg', cls: 'n', f: r => r.top3.toFixed(1), v: r => r.top3 },
+    { h: 'Best in GW', cls: 'n', f: r => r.best, v: r => r.best },
+  ], cp, { sort: 0, limit: 60 });
+}).catch(() => $('out').innerHTML = '<div class="msg err">Could not load the record. Try again in a minute.</div>');
+</script>
+</body>
+</html>

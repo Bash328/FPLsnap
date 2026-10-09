@@ -1,0 +1,13 @@
+name = "fplsnap-api"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+[triggers]
+crons = ["*/30 * * * *"]
+
+[vars]
+ALLOWED_ORIGINS = "https://bash328.github.io,https://fplsnap.com,https://www.fplsnap.com"
+
+# Stores accuracy logs and the elite-ownership sample. The namespace is created automatically on first deploy.
+[[kv_namespaces]]
+binding = "KV"

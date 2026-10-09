@@ -67,7 +67,7 @@ const gwInfo = Object.fromEntries(Object.entries(gw).map(([g, c]) => [g, {
 
 // Slim player records for the other pages. Short keys keep the JSON small.
 const num = v => (v == null || v === '' ? 0 : +v);
-const players = boot.elements.filter(p => p.status !== 'u').map(p => ({
+const players = boot.elements.filter(p => p.status !== 'u' || +p.selected_by_percent > 0).map(p => ({
   i: p.id, n: p.web_name, t: p.team, e: p.element_type, c: p.now_cost / 10,
   st: p.status, nw: p.news, ch: p.chance_of_playing_next_round, na: p.news_added,
   f: num(p.form), pt: p.total_points, ep: num(p.ep_next), pg: num(p.points_per_game),
@@ -83,6 +83,8 @@ const site = {
   updated: new Date().toISOString(), ev: { ...ev, cur },
   teams: Object.fromEntries(teams.map(t => [t.id, { short: t.short, name: t.name, nx: t.f.filter(f => f.g === from) }])),
   chips: boot.chips.map(c => ({ n: c.name, a: c.start_event, z: c.stop_event })),
+  evs: boot.events.map(e => ({ id: e.id, avg: e.average_entry_score, hi: e.highest_score, fin: e.finished })),
+  fx: Object.fromEntries(teams.map(t => [t.id, t.f.map(f => ({ g: f.g, o: f.o, h: f.h, r: f.r }))])),
   gw: gwInfo, players,
 };
 

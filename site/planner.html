@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FPL Transfer Planner – FPLSnap</title>
+<meta name="description" content="Free multi-gameweek FPL transfer planner with fixture difficulty, budget, free transfers and hits. Just your Team ID, no login.">
+<link rel="canonical" href="https://fplsnap.com/planner.html">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!--nav-->
+<main>
+<h1>FPL Transfer Planner</h1>
+<p id="sub"></p>
+<div class="ad">Ad slot</div>
+<div class="bar"><input id="tid" inputmode="numeric" placeholder="Your FPL Team ID" aria-label="FPL Team ID"><button id="go" class="go">Load squad</button></div>
+<div id="out"></div>
+<div id="app" style="display:none">
+<div class="bar">
+<select id="gwsel" aria-label="Plan for gameweek"></select>
+<select id="ft" aria-label="Free transfers available"></select>
+<button id="clear">Clear plan</button>
+</div>
+<div class="cards" id="sum"></div>
+<div class="wrap"><table id="sq"></table></div>
+<div class="panel" id="swap" style="display:none">
+<h3 id="swh"></h3>
+<div class="bar">
+<input id="sq_q" type="search" placeholder="Search player…" aria-label="Search player">
+<select id="sq_s" aria-label="Sort"><option value="ep">Expected points</option><option value="f">Form</option><option value="fx">Easiest fixtures</option><option value="c">Price</option><option value="o">Ownership</option></select>
+<button id="swx">Close</button>
+</div>
+<div class="wrap"><table id="cand"></table></div>
+</div>
+<h2>Your plan</h2>
+<div id="plan"></div>
+<p style="margin-top:12px">Planned transfers are saved on this device only. We use each player's current price as the selling price, so the real bank can differ for players whose price has risen. Fixture colours use your custom FDR from the Fixtures page if you set one. The planner can't make transfers for you: make them on the official FPL site.</p>
+</div>
+<div class="ad">Ad slot</div>
+</main>
+<!--foot-->
+<script src="app.js"></script>
+<script>
+let S, P, base = [], bank0 = 0, plan = store.get('plan', []), gw, swapOut = null;
+const custom = store.get('fdr', {});
+const pl = id => P[id] || { i: id, n: '#' + id, t: 1, e: 2, c: 4, ep: 0, f: 0, o: 0, st: 'a' };
+const short = id => S.teams[id]?.short || '?';
+const rate = f => custom[f.o + (f.h ? 'h' : 'a')] ?? f.r;
+const fxs = (t, from, n = 6) => (S.fx[t] || []).filter(f => f.g >= from && f.g < from + n);
+const fxAvg = (t, from) => { const f = fxs(t, from); return f.length ? f.reduce((a, x) => a + rate(x), 0) / f.length : 9 };
+const pills = (t, from) => '<span class="fxp">' + Array.from({ length: 6 }, (_, i) => {
+  const fs = fxs(t, from).filter(f => f.g === from + i);
+  return fs.length ? fs.map(f => `<span class="pill f${rate(f)}" title="GW${f.g}">${short(f.o)}${f.h ? '' : ' a'}</span>`).join('') : '<span class="pill x">–</span>';
+}).join('') + '</span>';
+const gwHead = () => '<span class="fxp">' + Array.from({ length: 6 }, (_, i) => `<span style="width:48px;text-align:center;font-size:11px;color:var(--mute)">${gw + i}</span>`).join('') + '</span>';
+
+const sorted = () => [...plan].sort((a, b) => a.gw - b.gw);
+const squadAt = g => { const sq = [...base]; for (const t of sorted()) if (t.gw <= g) { const i = sq.indexOf(t.out); if (i >= 0) sq[i] = t.in } return sq };
+const bankAt = g => sorted().filter(t => t.gw <= g).reduce((b, t) => b + pl(t.out).c - pl(t.in).c, bank0);
+const save = () => { store.set('plan', plan); draw() };
+
+function summary() {
+  let ft = +$('ft').value, hits = 0, rows = [];
+  const gws = [...new Set(plan.map(t => t.gw))].sort((a, b) => a - b);
+  for (const g of gws) {
+    const n = plan.filter(t => t.gw === g).length, h = Math.max(0, n - ft) * 4;
+    hits += h; rows.push({ g, n, ft, h, bank: bankAt(g) });
+    ft = Math.min(5, Math.max(0, ft - n) + 1);
+  }
+  return { rows, hits };
+}
+
+function draw() {
+  const g = +$('gwsel').value, sq = squadAt(g), bank = bankAt(g), sm = summary();
+  const clubs = {}; sq.forEach(id => clubs[pl(id).t] = (clubs[pl(id).t] || 0) + 1);
+  const value = sq.reduce((a, id) => a + pl(id).c, 0);
+  $('sum').innerHTML = `<div class="card"><h3>Bank at GW${g}</h3><div style="font-size:1.6rem;font-weight:800">£${bank.toFixed(1)}m</div><div style="color:var(--mute)">Squad value £${value.toFixed(1)}m</div></div>
+    <div class="card"><h3>Transfers planned</h3><div style="font-size:1.6rem;font-weight:800">${plan.length}</div><div style="color:var(--mute)">${sm.hits ? '−' + sm.hits + ' points in hits' : 'No hits'}</div></div>`;
+  $('sq').innerHTML = `<thead><tr><th>Player</th><th>Price</th><th>${gwHead()}</th><th></th></tr></thead><tbody>` + sq.map(id => {
+    const p = pl(id), moved = plan.some(t => t.in === id && t.gw <= g);
+    return `<tr><td><span style="display:inline-flex;align-items:center;gap:6px">${chip(short(p.t), 1)}<b>${esc(p.n)}</b><span class="pos">${POS[p.e]}</span>${moved ? ' <span class="pill" style="background:#7c3aed">new</span>' : ''}${p.st !== 'a' ? ' <span class="pill" style="background:#b91c1c">!</span>' : ''}</span></td><td class="n">£${p.c.toFixed(1)}</td><td>${pills(p.t, g)}</td><td><button data-out="${id}">Swap</button></td></tr>`;
+  }).join('') + '</tbody>';
+  $('sq').className = 'dt';
+  $('plan').innerHTML = plan.length ? sorted().map((t, i) => `<div class="row" style="display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--card)"><b>GW${t.gw}</b><span>${esc(pl(t.out).n)} <span style="color:var(--mute)">£${pl(t.out).c.toFixed(1)}</span> → <b>${esc(pl(t.in).n)}</b> <span style="color:var(--mute)">£${pl(t.in).c.toFixed(1)}</span></span><button style="margin-left:auto" data-rm="${plan.indexOf(t)}">Remove</button></div>`).join('') +
+    sm.rows.map(r => `<div style="color:var(--mute);font-size:13px;padding-top:4px">GW${r.g}: ${r.n} transfer${r.n > 1 ? 's' : ''}, ${r.ft} free${r.h ? `, <span class="dn">−${r.h} hit</span>` : ''}, bank £${r.bank.toFixed(1)}m</div>`).join('') : '<div class="msg">No transfers planned yet. Press Swap next to a player.</div>';
+  if (swapOut != null) cands();
+}
+
+function cands() {
+  const g = +$('gwsel').value, sq = squadAt(g), out = pl(swapOut);
+  const budget = bankAt(g) + out.c, q = $('sq_q').value.trim().toLowerCase(), key = $('sq_s').value;
+  const rest = sq.filter(id => id !== swapOut), clubs = {}; rest.forEach(id => clubs[pl(id).t] = (clubs[pl(id).t] || 0) + 1);
+  const rows = S.players.filter(p => p.e === out.e && p.c <= budget + 1e-9 && !sq.includes(p.i) && (clubs[p.t] || 0) < 3 && p.st !== 's' && (!q || p.n.toLowerCase().includes(q)))
+    .sort((a, b) => key === 'fx' ? fxAvg(a.t, g) - fxAvg(b.t, g) : b[key] - a[key]).slice(0, 25);
+  $('swh').textContent = `Replace ${out.n} (£${out.c.toFixed(1)}m) · budget £${budget.toFixed(1)}m · ${POS[out.e]}`;
+  $('cand').innerHTML = `<thead><tr><th>Player</th><th>Price</th><th>Exp</th><th>Form</th><th>Own</th><th>${gwHead()}</th><th></th></tr></thead><tbody>` + rows.map(p =>
+    `<tr><td><span style="display:inline-flex;align-items:center;gap:6px">${chip(short(p.t), 1)}<b>${esc(p.n)}</b>${p.st !== 'a' ? ' <span class="pill" style="background:#a16207">!</span>' : ''}</span></td><td class="n">£${p.c.toFixed(1)}</td><td class="n">${p.ep.toFixed(1)}</td><td class="n">${p.f.toFixed(1)}</td><td class="n">${p.o}%</td><td>${pills(p.t, g)}</td><td><button data-in="${p.i}">Pick</button></td></tr>`).join('') + '</tbody>';
+  $('cand').className = 'dt';
+  $('swap').style.display = '';
+}
+
+async function load(id) {
+  $('out').innerHTML = '<div class="msg">Loading…</div>';
+  try {
+    let pk = await fpl(`entry/${id}/event/${S.ev.cur}/picks/`);
+    // a Free Hit squad is one week only: plan from the squad before it
+    if (pk.active_chip === 'freehit' && S.ev.cur > 1) pk = await fpl(`entry/${id}/event/${S.ev.cur - 1}/picks/`);
+    base = pk.picks.sort((a, b) => a.position - b.position).map(p => p.element);
+    bank0 = pk.entry_history.bank / 10;
+    if (store.get('planTid') !== id) { plan = []; store.set('plan', plan); store.set('planTid', id) } // a plan belongs to one team
+    $('out').innerHTML = '';
+    $('app').style.display = '';
+    draw();
+  } catch (e) { $('out').innerHTML = `<div class="msg err">${String(e).includes('404') ? 'Team not found. Check the ID.' : 'Could not load. Try again in a minute.'}</div>` }
+}
+
+loadSite().then(s => {
+  S = s; P = Object.fromEntries(S.players.map(p => [p.i, p])); gw = S.ev.id;
+  if (!S.ev.cur) { $('sub').textContent = 'The season has not started yet.'; return }
+  $('sub').textContent = 'Plan transfers over the next six gameweeks.';
+  $('gwsel').innerHTML = Array.from({ length: 6 }, (_, i) => `<option value="${gw + i}">Squad at GW${gw + i}</option>`).join('');
+  $('ft').innerHTML = [1, 2, 3, 4, 5].map(i => `<option value="${i}">${i} free transfer${i > 1 ? 's' : ''}</option>`).join('');
+  teamInput(load);
+  if (!teamId.get()) $('out').innerHTML = idHelp;
+  $('gwsel').onchange = () => { swapOut = null; $('swap').style.display = 'none'; draw() };
+  $('ft').onchange = draw;
+  $('clear').onclick = () => { plan = []; save() };
+  $('sq').onclick = e => { const b = e.target.closest('[data-out]'); if (!b) return; swapOut = +b.dataset.out; $('sq_q').value = ''; cands(); $('swap').scrollIntoView({ behavior: 'smooth', block: 'nearest' }) };
+  $('cand').onclick = e => { const b = e.target.closest('[data-in]'); if (!b) return; plan.push({ gw: +$('gwsel').value, out: swapOut, in: +b.dataset.in }); swapOut = null; $('swap').style.display = 'none'; save() };
+  $('swx').onclick = () => { swapOut = null; $('swap').style.display = 'none' };
+  $('sq_q').oninput = $('sq_s').onchange = cands;
+  $('plan').onclick = e => { const b = e.target.closest('[data-rm]'); if (!b) return; plan.splice(+b.dataset.rm, 1); save() };
+});
+</script>
+</body>
+</html>

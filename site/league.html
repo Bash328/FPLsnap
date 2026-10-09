@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FPL Mini-League Live Table – FPLSnap</title>
+<meta name="description" content="Live FPL mini-league table with just your Team ID or league ID: live points, estimated totals and rank movement. Free, no login.">
+<link rel="canonical" href="https://fplsnap.com/league.html">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!--nav-->
+<main>
+<h1>FPL Mini-League Live Table</h1>
+<p id="sub"></p>
+<div class="ad">Ad slot</div>
+<div class="bar">
+<input id="tid" inputmode="numeric" placeholder="Your FPL Team ID" aria-label="FPL Team ID"><button id="go" class="go">Find my leagues</button>
+</div>
+<div class="bar">
+<select id="lg" aria-label="Your leagues"><option value="">Your leagues…</option></select>
+<input id="lid" inputmode="numeric" placeholder="or a league ID" aria-label="League ID">
+<button id="show" class="go">Show table</button>
+</div>
+<div id="out"></div>
+<div class="ad">Ad slot</div>
+</main>
+<!--foot-->
+<script src="app.js"></script>
+<script>
+let S, P, gw, timer, lid;
+const pl = id => P[id] || { n: '#' + id, t: 0, e: 0, c: 0 };
+const msg = (t, err) => $('out').innerHTML = `<div class="msg${err ? ' err' : ''}">${t}</div>`;
+const MAXN = 50; // one standings page; each manager costs one cached request
+
+async function pool(items, n, fn) { // run fn over items, n at a time
+  const out = []; let i = 0;
+  await Promise.all(Array.from({ length: n }, async () => { while (i < items.length) { const k = i++; out[k] = await fn(items[k]).catch(() => null) } }));
+  return out;
+}
+
+async function leagues(id) {
+  msg('Loading…');
+  try {
+    const en = await fpl(`entry/${id}/`);
+    // skip the giant public leagues: they have no useful live table
+    const ls = en.leagues.classic.filter(l => l.id > 1000 && l.entry_rank != null && !(l.short_name || '').startsWith('overall'));
+    $('lg').innerHTML = '<option value="">Your leagues…</option>' + ls.map(l => `<option value="${l.id}">${esc(l.name)}</option>`).join('');
+    msg(ls.length ? 'Pick a league and press Show table.' : 'No private leagues found. Enter a league ID instead.');
+    if (store.get('lid') && ls.some(l => l.id === store.get('lid'))) { $('lg').value = store.get('lid'); table_(store.get('lid')) }
+  } catch (e) { msg(String(e).includes('404') ? 'Team not found. Check the ID.' : 'Could not load. Try again in a minute.', 1) }
+}
+
+async function table_(id) {
+  lid = id; store.set('lid', id); clearInterval(timer);
+  const draw = async () => {
+    try {
+      const [st, live] = await Promise.all([fpl(`leagues-classic/${id}/standings/?page_standings=1`), fpl(`event/${gw}/live/`)]);
+      const res = st.standings.results.slice(0, MAXN);
+      const rows = await pool(res, 6, async r => {
+        const pk = await fpl(`entry/${r.entry}/event/${gw}/picks/`), sc = scorePicks(pk, live);
+        const cap = sc.rows.find(x => x.is_captain);
+        return { ...r, live: sc.total, est: r.total - r.event_total + sc.total, cap: cap ? pl(cap.element).n : '–', chip: pk.active_chip };
+      });
+      const ok = rows.filter(Boolean).sort((a, b) => b.est - a.est);
+      const CH = { freehit: 'FH', wildcard: 'WC', bboost: 'BB', '3xc': 'TC' };
+      $('out').innerHTML = `<h2>${esc(st.league.name)}</h2><div class="wrap"><table class="dt"><thead><tr><th>#</th><th>Manager</th><th class="n">GW (live)</th><th class="n">Total (est.)</th><th>Captain</th><th>Chip</th></tr></thead><tbody>` +
+        ok.map((r, i) => { const mv = r.rank > 0 ? r.rank - (i + 1) : 0; return `<tr><td>${i + 1} <span class="${mv > 0 ? 'up' : mv < 0 ? 'dn' : ''}">${mv > 0 ? '▲' + mv : mv < 0 ? '▼' + -mv : ''}</span></td><td><b>${esc(r.entry_name)}</b><br><span style="color:var(--mute);font-size:12px">${esc(r.player_name)}</span></td><td class="n">${r.live}</td><td class="n"><b>${r.est}</b></td><td>${esc(r.cap)}</td><td>${CH[r.chip] || ''}</td></tr>` }).join('') +
+        `</tbody></table></div><p style="margin-top:12px">Estimated total = official total before this gameweek + live GW points (after hits). Arrows compare with the official standing. ${st.standings.has_next ? `Only the first ${MAXN} managers are shown. ` : ''}Updated ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}; refreshes every 2 minutes.</p>`;
+    } catch (e) { msg(String(e).includes('404') ? 'League not found, or it is private to its members.' : 'Could not load the league. Try again in a minute.', 1) }
+  };
+  msg('Loading league…');
+  await draw();
+  timer = setInterval(() => { if (!document.hidden) draw() }, 120000);
+}
+
+loadSite().then(s => {
+  S = s; gw = S.ev.cur; P = Object.fromEntries(S.players.map(p => [p.i, p]));
+  if (!gw) { $('sub').textContent = 'The season has not started yet.'; return }
+  $('sub').textContent = `Gameweek ${gw}. Live points for every manager in the league.`;
+  $('tid').value = teamId.get();
+  const go = () => { const v = $('tid').value.trim(); if (!/^\d{1,9}$/.test(v)) return msg('Enter your numeric Team ID.', 1); teamId.set(v); leagues(+v) };
+  $('go').onclick = go; $('tid').onkeydown = e => { if (e.key === 'Enter') go() };
+  $('lg').onchange = () => { if ($('lg').value) table_(+$('lg').value) };
+  $('show').onclick = () => { const v = $('lid').value.trim() || $('lg').value; if (!/^\d{1,9}$/.test(v)) return msg('Pick a league or enter a league ID.', 1); table_(+v) };
+  if (teamId.get()) go(); else $('out').innerHTML = idHelp;
+});
+</script>
+</body>
+</html>

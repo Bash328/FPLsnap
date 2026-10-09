@@ -10,6 +10,45 @@ const KIT = {ARS:['#dc2626','#fff'],AVL:['#7b1c3e','#9fd3f0'],BOU:['#dc2626','#1
 const chip = (s, sm) => { const [b, f] = KIT[s] || ['#475569', '#fff']; return `<span class="b${sm ? ' s' : ''}" style="background:${b};color:${f}" aria-hidden="true">${s}</span>` };
 const POS = ['', 'GKP', 'DEF', 'MID', 'FWD'];
 
+// FPLSnap API worker: caching CORS proxy for public FPL manager/live data (see worker/)
+const API = 'https://fplsnap-api.cwakiku.workers.dev';
+const api = path => fetch(API + '/api/' + path).then(r => { if (!r.ok) throw new Error(r.status); return r.json() });
+const fpl = path => api('fpl/' + path);
+// Remembered Team ID, shared by every manager tool. Stored on this device only.
+const teamId = { get: () => store.get('tid', ''), set: v => store.set('tid', String(v)) };
+
+// Points a manager's picks have scored in a gameweek: starters x multiplier (bench players come in where FPL
+// has set auto-subs), minus transfer hits. Does not re-pick the vice-captain if the captain didn't play.
+function scorePicks(pk, live) {
+  const pts = Object.fromEntries(live.elements.map(e => [e.id, e.stats.total_points]));
+  const subs = pk.automatic_subs || [], inn = new Set(subs.map(x => x.element_in)), out = new Set(subs.map(x => x.element_out));
+  const cost = pk.entry_history.event_transfers_cost || 0;
+  const rows = pk.picks.map(p => {
+    const start = (p.position <= 11 && !out.has(p.element)) || inn.has(p.element);
+    const mult = start ? (p.position <= 11 ? p.multiplier : 1) : 0, raw = pts[p.element] ?? 0;
+    return { ...p, start, mult, raw, v: raw * mult };
+  });
+  return { rows, cost, total: rows.reduce((a, r) => a + r.v, 0) - cost };
+}
+// Provisional bonus from BPS (3/2/1, ties share the points of the places they occupy)
+function bonusFor(list) {
+  const out = {}, pts = [3, 2, 1], l = [...list].sort((a, b) => b.value - a.value);
+  for (let i = 0, pos = 0; i < l.length && pos < 3;) {
+    let j = i; while (j < l.length && l[j].value === l[i].value) j++;
+    for (let k = i; k < j; k++) out[l[k].element] = pts[pos];
+    pos += j - i; i = j;
+  }
+  return out;
+}
+// Team ID input: fills #tid, wires #go, calls onLoad(id)
+function teamInput(onLoad) {
+  $('tid').value = teamId.get();
+  const go = () => { const v = $('tid').value.trim(); if (!/^\d{1,9}$/.test(v)) { $('out').innerHTML = '<div class="msg err">Enter your numeric Team ID.</div>'; return } teamId.set(v); onLoad(+v) };
+  $('go').onclick = go; $('tid').onkeydown = e => { if (e.key === 'Enter') go() };
+  if (teamId.get()) go();
+}
+const idHelp = '<p>Find your Team ID in the URL when you open your team on the FPL site: fantasy.premierleague.com/entry/<b>123456</b>/event/1. No login needed, and the ID is only stored on this device.</p>';
+
 // Page data (everything except the ticker, which inlines its own)
 const loadSite = () => fetch('data/site.json').then(r => r.json());
 

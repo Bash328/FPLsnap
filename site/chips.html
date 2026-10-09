@@ -18,6 +18,9 @@
 <p id="sub"></p>
 <div class="ad">Ad slot</div>
 <div class="cards" id="cards"></div>
+<h2>Your chips</h2>
+<div class="bar"><input id="tid" inputmode="numeric" placeholder="Your FPL Team ID" aria-label="FPL Team ID"><button id="go" class="go">Show my chips</button></div>
+<div id="out"></div>
 <h2>Double and blank gameweeks</h2>
 <div class="wrap"><table id="t"></table></div>
 <p style="margin-top:12px">Doubles and blanks come from the current fixture list and change when matches are rearranged. Chip windows come from the official game settings. Rule of thumb: Bench Boost and Triple Captain shine in big doubles, Free Hit in big blanks, Wildcard before a run of good fixtures.</p>
@@ -46,6 +49,16 @@ loadSite().then(S => {
     { h: 'Doubles', f: x => `<span class="up">${x.dgw.length}</span> ${tm(x.dgw)}`, v: x => x.dgw.length },
     { h: 'Blanks', f: x => `<span class="dn">${x.bgw.length}</span> ${x.bgw.length > 8 ? '' : tm(x.bgw)}`, v: x => x.bgw.length },
   ], rows, { sort: 0, limit: 40 });
+  teamInput(async id => {
+    $('out').innerHTML = '<div class="msg">Loading…</div>';
+    try {
+      const h = await fpl(`entry/${id}/history/`);
+      $('out').innerHTML = '<div class="cards">' + S.chips.map(c => {
+        const u = h.chips.find(x => x.name === c.n && x.event >= c.a && x.event <= c.z);
+        return `<div class="card"><h3>${NAME[c.n] || c.n} · GW${c.a}–${c.z}</h3><div class="row">${u ? `<span class="pill" style="background:#475569">Used GW${u.event}</span>` : `<span class="pill f1">Available</span>`}</div></div>`;
+      }).join('') + '</div>';
+    } catch (e) { $('out').innerHTML = `<div class="msg err">${String(e).includes('404') ? 'Team not found. Check the ID.' : 'Could not load. Try again in a minute.'}</div>` }
+  });
   if (!rows.length) $('t').innerHTML = '<tbody><tr><td class="w">No doubles or blanks scheduled yet.</td></tr></tbody>';
 });
 </script>

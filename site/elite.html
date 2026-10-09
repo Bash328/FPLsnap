@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FPL Elite Ownership – Top Managers' Template – FPLSnap</title>
+<meta name="description" content="What the best FPL managers own: ownership among the top 150 managers in the world compared with overall ownership. Free, no login.">
+<link rel="canonical" href="https://fplsnap.com/elite.html">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!--nav-->
+<main>
+<h1>Elite Ownership</h1>
+<p id="sub"></p>
+<div class="ad">Ad slot</div>
+<div class="bar">
+<input id="q" type="search" placeholder="Filter player…" aria-label="Filter player">
+<select id="pos" aria-label="Position"><option value="0">All positions</option><option value="1">GKP</option><option value="2">DEF</option><option value="3">MID</option><option value="4">FWD</option></select>
+</div>
+<div id="out"><div class="msg">Loading…</div></div>
+<div class="wrap"><table id="t"></table></div>
+<p style="margin-top:12px">FPL does not publish top-10K ownership, so we sample the squads of the top 150 managers in the overall rankings for the current gameweek (skipping Free Hit squads). The sample fills in over a few hours after each deadline. "Edge" is elite ownership minus overall ownership: a large positive number means the best managers like a player more than everyone else does.</p>
+<div class="ad">Ad slot</div>
+</main>
+<!--foot-->
+<script src="app.js"></script>
+<script>
+let S, E, redraw;
+Promise.all([loadSite(), api('elite')]).then(([s, e]) => {
+  S = s; E = e;
+  if (!e.n) { $('out').innerHTML = `<div class="msg">The sample for this gameweek is still being collected (${e.done || 0} of ${e.sample || 150} squads read). Check back in a little while.</div>`; return }
+  $('out').innerHTML = '';
+  $('sub').textContent = `GW${e.gw} · ${e.n} of the top ${e.sample} squads read${e.done < e.sample ? ' (still collecting)' : ''}`;
+  const rows = () => S.players.filter(p => E.counts[p.i]).map(p => ({ ...p, el: E.counts[p.i] / E.n * 100 }))
+    .filter(p => (!+$('pos').value || p.e === +$('pos').value) && (!$('q').value.trim() || p.n.toLowerCase().includes($('q').value.trim().toLowerCase())));
+  redraw = table($('t'), [
+    { h: 'Player', f: p => `<span style="display:inline-flex;align-items:center;gap:6px">${chip(S.teams[p.t].short, 1)}<b>${esc(p.n)}</b></span>`, v: p => p.n.toLowerCase(), asc: 1 },
+    { h: 'Pos', f: p => `<span class="pos">${POS[p.e]}</span>`, v: p => p.e, asc: 1 },
+    { h: 'Price', cls: 'n', f: p => '£' + p.c.toFixed(1), v: p => p.c },
+    { h: 'Elite', cls: 'n', f: p => p.el.toFixed(0) + '%', v: p => p.el },
+    { h: 'Overall', cls: 'n', f: p => p.o + '%', v: p => p.o },
+    { h: 'Edge', cls: 'n', f: p => { const d = p.el - p.o; return `<span class="${d >= 0 ? 'up' : 'dn'}">${d >= 0 ? '+' : ''}${d.toFixed(0)}</span>` }, v: p => p.el - p.o },
+  ], rows(), { sort: 3, limit: 100 });
+  $('q').oninput = $('pos').onchange = () => redraw(rows());
+}).catch(() => $('out').innerHTML = '<div class="msg err">Could not load elite ownership. Try again in a minute.</div>');
+</script>
+</body>
+</html>
