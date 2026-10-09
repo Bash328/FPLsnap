@@ -50,6 +50,7 @@ async function served(req, url, env, ctx, cors) {
   let res = await cache.match(ck);
   if (!res) {
     const [body, l] = await Promise.all([env.KV.get(key), env.KV.list({ prefix: 'site' })]);
+    refreshIfStale(env, ctx, l.keys[0]?.metadata?.updated);
     if (!body) return json({ error: 'not ready' }, 503, cors);
     res = new Response(body, { headers: { 'content-type': 'application/json', 'cache-control': 'public, max-age=60', 'x-checked': l.keys[0]?.metadata?.updated ?? '' } });
     ctx.waitUntil(cache.put(ck, res.clone()));
@@ -146,6 +147,18 @@ async function refreshSite(env, boot, fx) {
   if (!old || strip(old) !== strip(t)) await env.KV.put('ticker', t);
 }
 
+// Freshness no longer depends on the scheduler alone: when a request finds the stored data older than 5 minutes
+// it refreshes in the background. The per-isolate timestamp stops one busy isolate retrying every request.
+let lastTry = 0;
+function refreshIfStale(env, ctx, updated) {
+  if (Date.now() - new Date(updated || 0) < 5 * 60e3 || Date.now() - lastTry < 60e3) return;
+  lastTry = Date.now();
+  ctx.waitUntil((async () => {
+    const [boot, fx] = await Promise.all([fpl('bootstrap-static/'), fpl('fixtures/')]);
+    await refreshSite(env, boot, fx);
+  })().catch(e => console.log('on-demand refresh failed', String(e))));
+}
+
 async function cron(env) {
   const [boot, fx] = await Promise.all([fpl('bootstrap-static/'), fpl('fixtures/')]);
   const slow = new Date().getUTCMinutes() % 10 < 5;
@@ -165,6 +178,7 @@ export default {
     if (url.pathname === '/api/site' || url.pathname === '/api/ticker') return served(req, url, env, ctx, cors);
     if (url.pathname === '/api/version') {
       const l = await env.KV.list({ prefix: 'site' });
+      refreshIfStale(env, ctx, l.keys[0]?.metadata?.updated);
       return json({ site: l.keys[0]?.metadata?.updated ?? null }, 200, { ...cors, 'cache-control': 'public, max-age=30' });
     }
     if (url.pathname === '/api/accuracy') {
